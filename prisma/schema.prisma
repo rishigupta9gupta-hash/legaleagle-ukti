@@ -1,0 +1,118 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  sessions      HealthSession[]
+  medications   Medication[]
+  reports       Report[]
+  programs      UserProgram[]
+  preferences   UserPreference?
+}
+
+// User preferences (onboarding data)
+model UserPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  language        String   @default("en")
+  conditions      String[] @default([])
+  allergies       String[] @default([])
+  reminderEnabled Boolean  @default(true)
+  reminderTime    String   @default("09:00")
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Health check sessions
+model HealthSession {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  mode          String   @default("medical") // medical or buddy
+  language      String   @default("en")
+  duration      Int      @default(0) // seconds
+  severity      String   @default("low") // low, moderate, high, emergency
+  
+  transcript    Json?    // Array of {role, text} objects
+  summary       String?
+  recommendations String[]
+  
+  createdAt     DateTime @default(now())
+}
+
+// Medications
+model Medication {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name          String
+  dosage        String?
+  frequency     String   @default("daily")
+  time          String   @default("09:00")
+  expiryDate    DateTime?
+  notes         String?
+  imageUrl      String?
+  
+  takenDates    String[] @default([]) // Array of date strings when taken
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Medical reports
+model Report {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  fileName      String
+  fileType      String
+  fileUrl       String?
+  
+  analysis      String?  // AI analysis result
+  summary       String?
+  
+  createdAt     DateTime @default(now())
+}
+
+// User enrolled programs
+model UserProgram {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  programId     String   // pcos, diabetes, stress, weight
+  startedAt     DateTime @default(now())
+  
+  // Progress tracking - JSON with date -> completed activities
+  progress      Json     @default("{}")
+  
+  // Mood logs - JSON array with {mood, date}
+  moodLogs      Json     @default("[]")
+  
+  // Water intake - JSON with date -> glasses count
+  waterIntake   Json     @default("{}")
+  
+  updatedAt     DateTime @updatedAt
+}
