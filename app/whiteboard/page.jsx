@@ -1,12 +1,14 @@
+"use client";
+
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { GoogleGenAI } from '@google/genai';
 import { Upload, Wand2, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
-const API_KEY = process.env.API_KEY || '';
+const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
 
-export const ImageEditor = () => {
-  const navigate = useNavigate();
+export default function WhiteboardPage() {
+  const router = useRouter();
   const [selectedImage, setSelectedImage] = useState(null);
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -67,8 +69,8 @@ export const ImageEditor = () => {
   return (
     <div className="p-6 max-w-6xl mx-auto h-full flex flex-col transition-colors duration-300">
       {/* Back Button */}
-      <button 
-        onClick={() => navigate('/')} 
+      <button
+        onClick={() => router.push('/dashboard')}
         className="mb-4 flex items-center gap-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors self-start"
       >
         <ArrowLeft size={20} /> Back
@@ -96,8 +98,8 @@ export const ImageEditor = () => {
                 <p className="text-zinc-500 dark:text-zinc-600 text-sm mt-1">PNG, JPG supported</p>
               </div>
             )}
-            <input 
-              type="file" 
+            <input
+              type="file"
               accept="image/*"
               onChange={handleImageUpload}
               className="absolute inset-0 opacity-0 cursor-pointer"
@@ -107,14 +109,14 @@ export const ImageEditor = () => {
           <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2">Edit Instruction</label>
             <div className="flex gap-2">
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g., 'Add a Redis cache node between Service A and DB'"
                 className="flex-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
               />
-              <button 
+              <button
                 onClick={handleGenerate}
                 disabled={!selectedImage || !prompt || isGenerating}
                 className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 rounded-lg font-medium flex items-center gap-2 transition-colors"
@@ -133,8 +135,8 @@ export const ImageEditor = () => {
               <div className="flex-1 relative">
                 <img src={resultImage} alt="Result" className="w-full h-full object-contain" />
               </div>
-              <a 
-                href={resultImage} 
+              <a
+                href={resultImage}
                 download="edited-whiteboard.png"
                 className="mt-4 w-full py-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg text-center font-medium transition-colors"
               >
@@ -164,19 +166,19 @@ export const ImageEditor = () => {
 
 // Image Icon without TS annotation
 const ImageIcon = ({ size }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width={size} 
-    height={size} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-    <circle cx="9" cy="9" r="2"/>
-    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+    <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+    <circle cx="9" cy="9" r="2" />
+    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
   </svg>
 );
