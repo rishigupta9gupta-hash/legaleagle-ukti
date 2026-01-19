@@ -8,8 +8,7 @@ import { ArrowRight, AlertCircle, ArrowLeft } from 'lucide-react';
 import { registerUser } from '@/app/utils/auth-api';
 import { parseJwt, googleAuthenticate } from '@/app/utils/auth';
 
-const GOOGLE_CLIENT_ID =
-  '918130002834-11b5smt2eoqgmqirft9alk8p8qbs47po.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 export default function SignupPage() {
   const router = useRouter();
