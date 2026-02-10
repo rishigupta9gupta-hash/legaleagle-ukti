@@ -38,7 +38,9 @@ function LoginForm() {
     try {
       const result = await loginUser(email, password);
       if (result.success) {
-        window.location.href = "/dashboard";
+        // Redirect based on role
+        const role = result.user?.role || 'user';
+        window.location.href = role === 'doctor' ? "/doctor/dashboard" : "/dashboard";
       } else {
         setError(result.message || "Invalid credentials");
       }
@@ -216,6 +218,13 @@ function LoginForm() {
             Don't have an account?{' '}
             <Link href="/signup" className="font-bold text-teal-600 hover:text-teal-700">
               Sign up for free
+            </Link>
+          </p>
+
+          <p className="mt-3 text-center text-sm text-zinc-500">
+            Are you a doctor?{' '}
+            <Link href="/doctor/register" className="font-bold text-emerald-600 hover:text-emerald-700">
+              Register as Doctor
             </Link>
           </p>
         </div>

@@ -14,7 +14,7 @@ export async function POST(request) {
 
         // Query user from database
         const result = await query(
-            'SELECT id, name, email, password, created_at FROM users WHERE email = $1',
+            'SELECT id, name, email, password, role, phone, specialization, created_at FROM users WHERE email = $1',
             [email]
         );
 

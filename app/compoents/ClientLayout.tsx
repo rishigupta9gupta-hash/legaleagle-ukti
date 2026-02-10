@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronDown, Sun, Moon, LogOut, User, HeartPulse, Stethoscope, Pill, FileText, Heart, MessageCircle } from 'lucide-react';
+import { ChevronDown, Sun, Moon, LogOut, User, HeartPulse, Stethoscope, Pill, FileText, Heart, MessageCircle, Users } from 'lucide-react';
 import { getSession, clearSession } from '../utils/auth';
 
 interface ClientLayoutProps {
@@ -14,7 +14,19 @@ export const ClientLayout: React.FC<ClientLayoutProps> = ({ children }) => {
     const pathname = usePathname();
     const router = useRouter();
     const [isDark, setIsDark] = useState(true);
-    const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+    const [user, setUser] = useState<{ name: string; email: string; role?: string } | null>(null);
+
+    // Load saved theme on mount
+    useEffect(() => {
+        const saved = localStorage.getItem('theme');
+        if (saved) {
+            setIsDark(saved === 'dark');
+        } else {
+            // Default to system preference
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            setIsDark(prefersDark);
+        }
+    }, []);
 
     // Sync state with HTML class
     useEffect(() => {
@@ -32,7 +44,11 @@ export const ClientLayout: React.FC<ClientLayoutProps> = ({ children }) => {
         setUser(sessionUser);
     }, [pathname]);
 
-    const toggleTheme = () => setIsDark(!isDark);
+    const toggleTheme = () => {
+        const newTheme = !isDark;
+        setIsDark(newTheme);
+        localStorage.setItem('theme', newTheme ? 'dark' : 'light');
+    };
 
     const handleLogout = () => {
         clearSession();
@@ -42,8 +58,9 @@ export const ClientLayout: React.FC<ClientLayoutProps> = ({ children }) => {
 
     const navItems = [
         { name: 'Health Check', path: '/triage', hasDropdown: false },
+        { name: 'Find Doctors', path: '/doctors', hasDropdown: false },
         { name: 'Features', path: '#', hasDropdown: true },
-        { name: 'About', path: '#', hasDropdown: false },
+        ...(user ? [{ name: 'Chat', path: '/chat', hasDropdown: false }] : []),
     ];
 
     return (
@@ -206,7 +223,7 @@ export const ClientLayout: React.FC<ClientLayoutProps> = ({ children }) => {
                                             <p className="text-sm font-medium truncate">{user.email}</p>
                                         </div>
                                         <button
-                                            onClick={() => router.push('/dashboard')}
+                                            onClick={() => router.push('/profile')}
                                             className="w-full text-left px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg flex items-center gap-2"
                                         >
                                             <User size={16} /> Profile

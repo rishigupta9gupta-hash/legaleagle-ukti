@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import {
     ArrowLeft, Heart, Pill, FileText, Activity,
     HeartPulse, ChevronRight, Calendar, Settings,
-    Droplets, TrendingUp, Clock, User
+    Droplets, TrendingUp, Clock, User, MessageCircle
 } from "lucide-react";
 import { getMedications } from "@/app/utils/medication-api";
 import { getSessions } from "@/app/utils/session-api";
@@ -23,8 +23,27 @@ export default function DashboardPage() {
     const [sessions, setSessions] = useState([]);
     const [medications, setMedications] = useState([]);
     const [reports, setReports] = useState([]);
+    const [userName, setUserName] = useState('User');
 
     useEffect(() => {
+        // Auth guard - check if user is logged in
+        const sessionStr = typeof window !== 'undefined' ? localStorage.getItem('intervue_user') : null;
+        if (!sessionStr) {
+            router.push('/login');
+            return;
+        }
+        try {
+            const session = JSON.parse(sessionStr);
+            if (session.role === 'doctor') {
+                router.push('/doctor/dashboard');
+                return;
+            }
+            setUserName(session.name || 'User');
+        } catch (e) {
+            router.push('/login');
+            return;
+        }
+
         const loadDashboardData = async () => {
             const [medsRes, sessionsRes, reportsRes] = await Promise.all([
                 getMedications(),
@@ -45,10 +64,6 @@ export default function DashboardPage() {
             if (sess.length > 0) {
                 const dates = sess.map(s => new Date(s.created_at).toDateString());
                 const uniqueDates = [...new Set(dates)].sort((a, b) => new Date(b) - new Date(a));
-
-                streak = 1; // At least today/last session
-                // Simple streak logic (consecutive days) could be added here
-                // For now, we'll just count recent active days or keep it simple
                 streak = uniqueDates.length;
             }
 
@@ -60,7 +75,7 @@ export default function DashboardPage() {
         };
 
         loadDashboardData();
-    }, []);
+    }, [router]);
 
     const tabs = [
         { id: 'overview', name: 'Overview', icon: Activity },
@@ -73,7 +88,7 @@ export default function DashboardPage() {
         { name: 'Health Check', path: '/triage', icon: Heart, color: 'from-teal-500 to-cyan-500' },
         { name: 'Medications', path: '/medication', icon: Pill, color: 'from-orange-500 to-pink-500' },
         { name: 'Reports', path: '/reports', icon: FileText, color: 'from-blue-500 to-indigo-500' },
-        { name: 'Programs', path: '/programs', icon: Activity, color: 'from-purple-500 to-pink-500' }
+        { name: 'Chat with Doctors', path: '/doctors', icon: MessageCircle, color: 'from-emerald-500 to-teal-500' }
     ];
 
     return (
@@ -105,7 +120,7 @@ export default function DashboardPage() {
             <div className="max-w-5xl mx-auto p-6 md:p-8">
                 {/* Welcome Banner */}
                 <div className="bg-gradient-to-r from-teal-500 to-cyan-500 rounded-3xl p-8 mb-8 text-white">
-                    <h1 className="text-2xl md:text-3xl font-bold mb-2">Welcome back, User!</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold mb-2">Welcome back, {userName}!</h1>
                     <p className="text-white/80 mb-6">Your health journey at a glance</p>
 
                     <div className="grid grid-cols-3 gap-4">
