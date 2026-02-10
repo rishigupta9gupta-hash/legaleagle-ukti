@@ -1,7 +1,17 @@
 import { Pool } from 'pg';
 
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+    console.error('CRITICAL: DATABASE_URL is undefined in environment variables');
+} else {
+    // Mask password for logging: postgres://user:***@host...
+    const masked = connectionString.replace(/:([^:@]+)@/, ':***@');
+    console.log(`Connecting to database with: ${masked}`);
+}
+
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString,
     ssl: {
         rejectUnauthorized: false
     }
