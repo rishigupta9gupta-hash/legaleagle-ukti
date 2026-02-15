@@ -1,36 +1,19 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Healiox: Next-Generation AI Health Assistant
 
-## Getting Started
+Healiox is a comprehensive, AI-powered healthcare platform designed to transform how individuals access medical guidance and manage their well-being. By leveraging advanced artificial intelligence, Healiox provides personalized, real-time health assistance, making professional-grade care more accessible and efficient.
 
-First, run the development server:
+## Project Overview
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Healiox acts as an intelligent companion for your health journey, bridging the gap between patients and healthcare services. Whether it's understanding symptoms, managing prescriptions, or connecting with doctors, Healiox ensures a seamless and supportive experience.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Key Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+* **Smart Triage & Symptom Assessment**: An intelligent system that listens to your concerns and provides immediate, accurate guidance on the next steps for your care.
+* **Comprehensive Health Dashboard**: A centralized hub to view your health status, upcoming tasks, and vital information at a glance.
+* **Medication Intelligence**: Advanced tools to track prescriptions, ensuring you never miss a dose and understand your medication better.
+* **Doctor Consultation & Networking**: Seamlessly find and connect with specialized healthcare professionals for expert advice.
+* **Medical Reports Analysis**: Easy uploading and intelligent breakdown of your medical reports to help you understand your health data.
+* **Interactive Video Studio**: Integrated video capabilities for enhanced telehealth consultations and health assessments.
+* **Secure Onboarding**: A streamlined and secure process to get started, ensuring your personal health data is handled with care.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Healiox is dedicated to empowering users with the tools and knowledge they need to take control of their health.

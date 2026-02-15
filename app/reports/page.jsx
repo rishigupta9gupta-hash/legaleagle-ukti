@@ -1,14 +1,11 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { GoogleGenAI } from "@google/genai";
 import { getReports, saveReport, deleteReport } from "@/app/utils/report-api";
 import {
     ArrowLeft, Upload, FileText, Image, X, Loader2,
     HeartPulse, CheckCircle, AlertTriangle, Info, Download
 } from "lucide-react";
-
-const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
 
 export default function ReportsPage() {
     const router = useRouter();
@@ -71,14 +68,12 @@ export default function ReportsPage() {
     };
 
     const analyzeReport = async () => {
-        if (!uploadedFile || !API_KEY) return;
+        if (!uploadedFile) return;
 
         setIsAnalyzing(true);
         setError(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: API_KEY });
-
             // Read file as base64
             const reader = new FileReader();
             const fileData = await new Promise((resolve, reject) => {
@@ -87,58 +82,63 @@ export default function ReportsPage() {
                 reader.readAsDataURL(uploadedFile);
             });
 
-            // Extract base64 data
             const base64Data = fileData.split(',')[1];
             const mimeType = uploadedFile.type;
 
-            const prompt = `You are VIRA, a helpful health assistant. Analyze this medical report/test result and explain it in simple, easy-to-understand language.
-
-Please provide:
-1. **What This Report Shows**: A brief summary of what kind of test/report this is
-2. **Key Findings**: List the important values/findings (use bullet points)
-3. **What It Means**: Explain in simple terms what these results indicate
-4. **Normal vs Abnormal**: Highlight anything that's outside normal range (if applicable)
-5. **Suggested Actions**: What the person should do next (if anything needs attention)
-
-IMPORTANT:
-- Use simple, everyday language (avoid medical jargon)
-- Be reassuring but honest
-- Always recommend consulting a doctor for proper interpretation
-- If you can't read the report clearly, say so
-
-Format your response with clear sections using markdown headers.`;
-
-            const response = await ai.models.generateContent({
-                model: "gemini-2.0-flash",
-                contents: [{
-                    parts: [
-                        { text: prompt },
-                        { inlineData: { mimeType, data: base64Data } }
-                    ]
-                }]
+            // Call server-side API route (keeps API key secure)
+            const res = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ base64Data, mimeType })
             });
 
-            const text = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+            const result = await res.json();
+
+            if (!res.ok || !result.success) {
+                throw new Error(result.message || 'Analysis failed');
+            }
+
+            const text = result.analysis;
             setAnalysis(text);
 
-            // Save to Database
-            if (text) {
-                const summary = text.substring(0, 200) + '...';
+            // Save to Database (optional)
+            try {
                 await saveReport({
                     fileName: uploadedFile.name,
                     fileType: uploadedFile.type,
-                    fileUrl: base64Data,
+                    fileUrl: '',
                     analysis: text,
-                    summary: summary
+                    summary: result.summary || text.substring(0, 200) + '...'
                 });
                 loadReports();
+            } catch (saveErr) {
+                console.warn("Could not save report to DB:", saveErr);
             }
         } catch (err) {
             console.error("Analysis error:", err);
-            setError("Failed to analyze the report. Please try again.");
+            const errMsg = err?.message || err?.toString() || "Unknown error";
+
+            if (errMsg.includes('rate limit') || errMsg.includes('429') || errMsg.includes('quota')) {
+                setError("⏳ API rate limit reached. Please wait a moment and try again.");
+            } else if (errMsg.includes('not configured')) {
+                setError("Gemini API key not configured. Add GEMINI_API_KEY to .env.local.");
+            } else {
+                setError(`Analysis failed: ${errMsg.substring(0, 200)}`);
+            }
         } finally {
             setIsAnalyzing(false);
         }
+    };
+
+    // Helper to render inline bold text
+    const renderInlineMarkdown = (text) => {
+        const parts = text.split(/(\*\*[^*]+\*\*)/g);
+        return parts.map((part, i) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+                return <strong key={i} className="text-teal-700 dark:text-teal-400">{part.slice(2, -2)}</strong>;
+            }
+            return part;
+        });
     };
 
     const clearFile = () => {
@@ -253,7 +253,7 @@ Format your response with clear sections using markdown headers.`;
 
                 {/* Analysis Results */}
                 {analysis && (
-                    <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
+                    <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-xl border border-zinc-100 dark:border-zinc-800 overflow-hidden mb-8">
                         <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-teal-50 dark:bg-teal-900/20 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <CheckCircle size={22} className="text-teal-600" />
@@ -263,14 +263,18 @@ Format your response with clear sections using markdown headers.`;
                         <div className="p-6">
                             <div className="prose prose-zinc dark:prose-invert max-w-none prose-headings:text-teal-700 dark:prose-headings:text-teal-400 prose-strong:text-teal-600">
                                 {analysis.split('\n').map((line, i) => {
-                                    if (line.startsWith('## ')) {
+                                    if (line.startsWith('### ')) {
+                                        return <h3 key={i} className="text-base font-bold mt-5 mb-2 text-teal-700 dark:text-teal-400">{line.replace('### ', '')}</h3>;
+                                    } else if (line.startsWith('## ')) {
                                         return <h2 key={i} className="text-lg font-bold mt-6 mb-3 text-teal-700 dark:text-teal-400">{line.replace('## ', '')}</h2>;
+                                    } else if (line.startsWith('# ')) {
+                                        return <h1 key={i} className="text-xl font-bold mt-6 mb-3 text-teal-700 dark:text-teal-400">{line.replace('# ', '')}</h1>;
                                     } else if (line.startsWith('**') && line.endsWith('**')) {
-                                        return <h3 key={i} className="font-bold mt-4 mb-2">{line.replace(/\*\*/g, '')}</h3>;
+                                        return <h3 key={i} className="font-bold mt-4 mb-2 text-zinc-900 dark:text-white">{line.replace(/\*\*/g, '')}</h3>;
                                     } else if (line.startsWith('- ') || line.startsWith('* ')) {
-                                        return <li key={i} className="ml-4">{line.replace(/^[-*] /, '')}</li>;
+                                        return <li key={i} className="ml-4 mb-1 text-zinc-700 dark:text-zinc-300">{renderInlineMarkdown(line.replace(/^[-*] /, ''))}</li>;
                                     } else if (line.trim()) {
-                                        return <p key={i} className="mb-2">{line}</p>;
+                                        return <p key={i} className="mb-2 text-zinc-700 dark:text-zinc-300">{renderInlineMarkdown(line)}</p>;
                                     }
                                     return null;
                                 })}

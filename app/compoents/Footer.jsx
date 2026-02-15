@@ -31,7 +31,7 @@ export const Footer = () => {
               <li><button onClick={() => router.push("/triage")} className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors text-left">Symptom Check</button></li>
               <li><button onClick={() => router.push("/medications")} className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors text-left">Medication Tracker</button></li>
               <li><button onClick={() => router.push("/reports")} className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors text-left">Report Analysis</button></li>
-              <li><button onClick={() => router.push("/care-programs")} className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors text-left">Care Programs</button></li>
+              <li><button onClick={() => router.push("/programs")} className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors text-left">Care Programs</button></li>
             </ul>
           </div>
 

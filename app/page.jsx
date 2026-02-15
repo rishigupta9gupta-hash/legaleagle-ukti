@@ -298,6 +298,27 @@ export default function Dashboard() {
             <span className="mx-2">•</span>
             <span className="flex items-center gap-1"><Heart size={14} className="text-teal-600" /> Always free to start</span>
           </p>
+
+          {/* Quick Access Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12 max-w-3xl mx-auto">
+            {[
+              { icon: <Stethoscope size={22} />, label: 'Symptom Check', href: '/triage', color: 'from-teal-500 to-cyan-500' },
+              { icon: <Pill size={22} />, label: 'Medications', href: '/medication', color: 'from-orange-500 to-red-500' },
+              { icon: <FileText size={22} />, label: 'Report Analysis', href: '/reports', color: 'from-blue-500 to-indigo-500' },
+              { icon: <Heart size={22} />, label: 'Care Programs', href: '/programs', color: 'from-pink-500 to-rose-500' }
+            ].map((item, i) => (
+              <button
+                key={i}
+                onClick={() => router.push(item.href)}
+                className="group bg-white/70 dark:bg-zinc-800/70 backdrop-blur-sm border border-zinc-200 dark:border-zinc-700 rounded-2xl p-4 flex flex-col items-center gap-3 hover:shadow-lg hover:scale-105 transition-all"
+              >
+                <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center text-white group-hover:scale-110 transition-transform`}>
+                  {item.icon}
+                </div>
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{item.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -408,14 +429,14 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
-              { icon: <Mic size={24} />, title: "Voice Conversations", desc: "Natural voice-to-voice health talks" },
-              { icon: <Camera size={24} />, title: "Visual Assessment", desc: "Optional camera for visual symptoms" },
-              { icon: <Pill size={24} />, title: "Medication Tracker", desc: "Never miss a dose with smart reminders" },
-              { icon: <FileText size={24} />, title: "Report Analysis", desc: "Upload and understand lab reports" },
-              { icon: <Salad size={24} />, title: "Care Programs", desc: "Condition-specific wellness plans" },
-              { icon: <Bell size={24} />, title: "Health Buddy", desc: "Daily check-ins and wellness nudges" }
+              { icon: <Mic size={24} />, title: "Voice Conversations", desc: "Natural voice-to-voice health talks", href: "/triage" },
+              { icon: <Camera size={24} />, title: "Visual Assessment", desc: "Optional camera for visual symptoms", href: "/triage" },
+              { icon: <Pill size={24} />, title: "Medication Tracker", desc: "Never miss a dose with smart reminders", href: "/medication" },
+              { icon: <FileText size={24} />, title: "Report Analysis", desc: "Upload and understand lab reports", href: "/reports" },
+              { icon: <Salad size={24} />, title: "Care Programs", desc: "Condition-specific wellness plans", href: "/programs" },
+              { icon: <Bell size={24} />, title: "Health Buddy", desc: "Daily check-ins and wellness nudges", href: "/triage" }
             ].map((feature, i) => (
-              <div key={i} className="bg-zinc-50 dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:shadow-lg transition-all group">
+              <div key={i} onClick={() => router.push(feature.href)} className="bg-zinc-50 dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:shadow-lg transition-all group cursor-pointer">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-500 text-white flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   {feature.icon}
                 </div>
