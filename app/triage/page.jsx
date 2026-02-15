@@ -6,7 +6,8 @@ import {
     Mic, MicOff, PhoneOff, Clock, CheckCircle,
     Loader2, RefreshCw, ArrowLeft,
     HeartPulse, Activity, Shield,
-    Stethoscope, FileText, ChevronDown, Globe
+    Stethoscope, FileText, ChevronDown, Globe,
+    Send, AlertTriangle
 } from "lucide-react";
 import {
     arrayBufferToBase64,
@@ -66,6 +67,7 @@ export default function HealthTriage() {
     const [isBuddyMode, setIsBuddyMode] = useState(false);
     const [chatInput, setChatInput] = useState('');
     const chatInputRef = useRef(null);
+    const chatEndRef = useRef(null);
 
     const inputAudioContextRef = useRef(null);
     const outputAudioContextRef = useRef(null);
@@ -86,6 +88,11 @@ export default function HealthTriage() {
     useEffect(() => {
         return () => stopSession();
     }, []);
+
+    // Auto-scroll chat
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [fullTranscript]);
 
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
@@ -120,8 +127,7 @@ export default function HealthTriage() {
                 ? `Respond in ${selectedLanguage.name} (${selectedLanguage.native}) language. `
                 : '';
 
-            const buddyModeInstruction = isBuddyMode
-                ? `You are VIRA, a friendly wellness buddy. ${languageInstruction}You're here to chat, provide emotional support, and help with daily wellness.
+            const buddyModeInstruction = `You are VIRA, a friendly wellness buddy. ${languageInstruction}You're here to chat, provide emotional support, and help with daily wellness.
 
 BUDDY MODE - Be casual and friendly:
 1. Talk like a caring friend, not a medical assistant
@@ -130,8 +136,9 @@ BUDDY MODE - Be casual and friendly:
 4. Suggest healthy habits, hydration, breaks, etc.
 5. Be encouraging and positive
 
-Start by saying: "Hey! I'm here whenever you want to chat. How's your day going?"`
-                : `You are VIRA, a compassionate AI health assistant. ${languageInstruction}Help users understand their symptoms and provide guidance.
+Start by saying: "Hey! I'm here whenever you want to chat. How's your day going?"`;
+
+            const medicalModeInstruction = `You are VIRA, a compassionate AI health assistant. ${languageInstruction}Help users understand their symptoms and provide guidance.
 
 MEDICAL MODE - Be professional but warm:
 1. You are NOT a doctor - always remind users to consult professionals
@@ -142,7 +149,7 @@ MEDICAL MODE - Be professional but warm:
 
 Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
 
-            const systemInstruction = isBuddyMode ? buddyModeInstruction : buddyModeInstruction;
+            const systemInstruction = isBuddyMode ? buddyModeInstruction : medicalModeInstruction;
 
             const sessionPromise = ai.live.connect({
                 model: LIVE_MODEL,
@@ -200,16 +207,33 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
         }
     };
 
+    /* ============================================================
+       Transcript merging — consecutive messages from the same role
+       are merged rather than pushed as separate entries.
+       This prevents fragmented "half-half" voice transcript messages.
+       ============================================================ */
     const handleServerMessage = async (msg, ctx, outputNode) => {
         const inputTx = msg.serverContent?.inputTranscription?.text;
         const outputTx = msg.serverContent?.outputTranscription?.text;
 
         if (inputTx || outputTx) {
             setFullTranscript(prev => {
-                const newLogs = [...prev];
-                if (inputTx) newLogs.push({ role: 'You', text: inputTx });
-                if (outputTx) newLogs.push({ role: 'VIRA', text: outputTx });
-                return newLogs;
+                const updated = [...prev];
+
+                const merge = (role, text) => {
+                    if (!text) return;
+                    const last = updated[updated.length - 1];
+                    if (last && last.role === role) {
+                        // Merge with previous message from same role
+                        last.text += text;
+                    } else {
+                        updated.push({ role, text });
+                    }
+                };
+
+                merge('You', inputTx);
+                merge('VIRA', outputTx);
+                return updated;
             });
         }
 
@@ -245,6 +269,32 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
         }
     };
 
+    /* ============================================================
+       WhatsApp-style text chat — send text via Gemini Live session
+       ============================================================ */
+    const handleSendText = async () => {
+        const text = chatInput.trim();
+        if (!text || sessionStatus !== 'active') return;
+
+        // Add to transcript immediately
+        setFullTranscript(prev => [...prev, { role: 'You', text }]);
+        setChatInput('');
+
+        try {
+            const session = await sessionRef.current;
+            session.sendClientContent({ turns: [{ role: 'user', parts: [{ text }] }] });
+        } catch (err) {
+            console.error('Send text error:', err);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendText();
+        }
+    };
+
     const stopSession = (endedByUser = true) => {
         if (sessionStatus === 'active' && endedByUser) {
             setSessionStatus("finished");
@@ -267,17 +317,46 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
         sessionRef.current = null;
     };
 
-    const generateAssessment = () => {
+    /* ============================================================
+       ML-powered assessment — calls /api/ml-predict with transcript
+       ============================================================ */
+    const generateAssessment = async () => {
         setIsAnalyzing(true);
-        setTimeout(async () => {
-            const severityLevel = currentSeverity || 'low';
-            const assessment = {
-                severity: severityLevel,
-                summary: "Based on our conversation, your symptoms appear to be " + SEVERITY_LEVELS[severityLevel].label.toLowerCase() + " severity.",
-                recommendations: ["Monitor symptoms", "Stay hydrated", "Rest well", "Consult a doctor if symptoms worsen"]
-            };
 
-            setAssessmentData(assessment);
+        try {
+            const res = await fetch('/api/ml-predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transcript: fullTranscript })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                const assessment = {
+                    severity: data.risk.level,
+                    summary: data.risk.description,
+                    recommendations: data.recommendations.map(r => `${r.icon} ${r.text}`),
+                    categories: data.categories
+                };
+                setAssessmentData(assessment);
+                setCurrentSeverity(data.risk.level);
+            } else {
+                // Fallback
+                setAssessmentData({
+                    severity: 'low',
+                    summary: 'Analysis complete. No critical concerns detected.',
+                    recommendations: ['Monitor symptoms', 'Stay hydrated', 'Rest well', 'Consult a doctor if symptoms worsen'],
+                    categories: {}
+                });
+            }
+        } catch {
+            setAssessmentData({
+                severity: currentSeverity || 'low',
+                summary: 'Based on our conversation, your symptoms appear to be ' + SEVERITY_LEVELS[currentSeverity || 'low'].label.toLowerCase() + ' severity.',
+                recommendations: ['Monitor symptoms', 'Stay hydrated', 'Rest well', 'Consult a doctor if symptoms worsen'],
+                categories: {}
+            });
+        } finally {
             setIsAnalyzing(false);
 
             // Save to Database
@@ -285,14 +364,14 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
                 await saveSession({
                     duration: sessionDuration,
                     transcript: fullTranscript,
-                    summary: assessment.summary,
-                    severity: assessment.severity,
-                    recommendations: assessment.recommendations,
+                    summary: assessmentData?.summary || 'Session completed',
+                    severity: assessmentData?.severity || 'low',
+                    recommendations: assessmentData?.recommendations || [],
                     mode: isBuddyMode ? 'buddy' : 'medical',
                     language: selectedLanguage.code
                 });
             }
-        }, 2000);
+        }
     };
 
     const resetSession = () => {
@@ -303,9 +382,18 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
         setCurrentSeverity("low");
     };
 
+    /* ============================================================
+       Avatar state for animations
+       ============================================================ */
+    const avatarState = sessionStatus === 'active'
+        ? (speakingCount > 0 ? 'speaking' : 'listening')
+        : sessionStatus === 'finished'
+            ? 'done'
+            : 'idle';
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-white to-teal-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950 flex flex-col">
-            {/* Header - Matching Reference Exactly */}
+            {/* Header */}
             <header className="px-6 py-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800">
                 <button
                     onClick={() => router.push('/')}
@@ -381,48 +469,94 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
             <div className="flex-1 flex items-center justify-center p-6">
                 <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-                    {/* Left Panel - Avatar Card */}
+                    {/* Left Panel - AI Avatar Card */}
                     <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-zinc-100 dark:border-zinc-800">
                         <div className="relative">
-                            <img
-                                src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=600&h=450&fit=crop&crop=faces"
-                                alt="VIRA"
-                                className="w-full aspect-[4/3] object-cover"
-                            />
-
-                            {/* READY Badge */}
-                            <div className="absolute top-4 right-4">
-                                <span className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wide ${sessionStatus === 'active'
-                                    ? 'bg-green-500 text-white'
-                                    : sessionStatus === 'finished'
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-teal-500 text-white'
-                                    }`}>
-                                    {sessionStatus === 'active' ? 'Listening' : sessionStatus === 'finished' ? 'Complete' : 'Ready'}
-                                </span>
-                            </div>
-
-                            {/* Audio Visualizer */}
-                            {sessionStatus === 'active' && speakingCount > 0 && outputAnalyserRef.current && (
-                                <div className="absolute bottom-20 left-0 right-0 flex justify-center">
-                                    <AudioVisualizer
-                                        analyser={outputAnalyserRef.current}
-                                        isActive={speakingCount > 0}
-                                        color="#ffffff"
-                                        width={180}
-                                        height={40}
-                                    />
+                            {/* Animated AI Avatar */}
+                            <div className="w-full aspect-[4/3] bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-950 flex items-center justify-center relative overflow-hidden">
+                                {/* Background animated rings */}
+                                <div className={`absolute inset-0 flex items-center justify-center`}>
+                                    <div className={`absolute w-72 h-72 rounded-full border border-teal-500/10 ${avatarState === 'speaking' ? 'animate-ping' : ''}`} style={{ animationDuration: '3s' }} />
+                                    <div className={`absolute w-56 h-56 rounded-full border border-cyan-500/15 ${avatarState !== 'idle' ? 'animate-pulse' : ''}`} />
+                                    <div className={`absolute w-40 h-40 rounded-full border border-teal-400/20 ${avatarState === 'listening' ? 'animate-pulse' : ''}`} />
                                 </div>
-                            )}
 
-                            {/* Name Overlay */}
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-6 pt-16">
-                                <h3 className="text-white font-bold text-2xl">VIRA</h3>
-                                <p className="text-white/70 text-sm">Your AI Health Companion</p>
+                                {/* Central Avatar Orb */}
+                                <div className={`relative z-10 w-32 h-32 rounded-full flex items-center justify-center transition-all duration-500 ${avatarState === 'speaking'
+                                    ? 'bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 shadow-[0_0_60px_rgba(139,92,246,0.5)]'
+                                    : avatarState === 'listening'
+                                        ? 'bg-gradient-to-br from-teal-500 via-cyan-500 to-blue-500 shadow-[0_0_60px_rgba(20,184,166,0.5)]'
+                                        : avatarState === 'done'
+                                            ? 'bg-gradient-to-br from-emerald-500 to-green-500 shadow-[0_0_40px_rgba(16,185,129,0.4)]'
+                                            : 'bg-gradient-to-br from-zinc-600 via-zinc-500 to-zinc-600 shadow-[0_0_30px_rgba(100,100,100,0.3)]'
+                                    }`}>
+                                    {/* Inner glow */}
+                                    <div className={`absolute inset-2 rounded-full bg-white/10 backdrop-blur-sm ${avatarState === 'speaking' || avatarState === 'listening' ? 'animate-pulse' : ''}`} />
+
+                                    {/* Icon */}
+                                    <div className="relative z-10">
+                                        {avatarState === 'speaking' ? (
+                                            <div className="flex items-end gap-1 h-10">
+                                                {[1, 2, 3, 4, 5].map(i => (
+                                                    <div
+                                                        key={i}
+                                                        className="w-1.5 bg-white rounded-full animate-bounce"
+                                                        style={{
+                                                            height: `${10 + Math.random() * 25}px`,
+                                                            animationDelay: `${i * 0.1}s`,
+                                                            animationDuration: '0.6s'
+                                                        }}
+                                                    />
+                                                ))}
+                                            </div>
+                                        ) : avatarState === 'listening' ? (
+                                            <Mic size={40} className="text-white animate-pulse" />
+                                        ) : avatarState === 'done' ? (
+                                            <CheckCircle size={40} className="text-white" />
+                                        ) : (
+                                            <Stethoscope size={40} className="text-white/80" />
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Audio Visualizer overlay */}
+                                {sessionStatus === 'active' && speakingCount > 0 && outputAnalyserRef.current && (
+                                    <div className="absolute bottom-8 left-0 right-0 flex justify-center z-20">
+                                        <AudioVisualizer
+                                            analyser={outputAnalyserRef.current}
+                                            isActive={speakingCount > 0}
+                                            color="#ffffff"
+                                            width={180}
+                                            height={40}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Status Badge */}
+                                <div className="absolute top-4 right-4 z-20">
+                                    <span className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wide ${sessionStatus === 'active'
+                                        ? speakingCount > 0 ? 'bg-violet-500 text-white' : 'bg-green-500 text-white'
+                                        : sessionStatus === 'finished'
+                                            ? 'bg-blue-500 text-white'
+                                            : 'bg-teal-500 text-white'
+                                        }`}>
+                                        {sessionStatus === 'active'
+                                            ? speakingCount > 0 ? 'Speaking' : 'Listening'
+                                            : sessionStatus === 'finished' ? 'Complete' : 'Ready'}
+                                    </span>
+                                </div>
+
+                                {/* Name Overlay */}
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-6 pt-16 z-20">
+                                    <h3 className="text-white font-bold text-2xl">VIRA</h3>
+                                    <p className="text-white/70 text-sm">
+                                        {isBuddyMode ? 'Your Wellness Buddy' : 'AI Health Companion'}
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Button */}
+                        {/* Action Buttons */}
                         <div className="p-5">
                             {sessionStatus === 'idle' ? (
                                 <button
@@ -472,35 +606,71 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
                             <h3 className="font-bold text-lg text-zinc-900 dark:text-white">Conversation</h3>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 min-h-[350px]">
+                        <div className="flex-1 overflow-y-auto p-6 min-h-[350px] max-h-[450px]">
                             {sessionStatus === 'finished' && assessmentData ? (
                                 <div className="space-y-4">
                                     {isAnalyzing ? (
                                         <div className="flex flex-col items-center justify-center py-12">
                                             <Loader2 size={40} className="text-teal-500 animate-spin mb-4" />
-                                            <p className="text-zinc-500">Analyzing...</p>
+                                            <p className="text-zinc-500">Analyzing with ML models...</p>
                                         </div>
                                     ) : (
                                         <>
+                                            {/* Severity Badge */}
                                             <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${SEVERITY_LEVELS[assessmentData.severity].color}`}>
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${SEVERITY_LEVELS[assessmentData.severity]?.color || 'bg-green-500'}`}>
                                                     <Activity size={20} className="text-white" />
                                                 </div>
                                                 <div>
-                                                    <div className={`font-bold text-sm ${SEVERITY_LEVELS[assessmentData.severity].textColor}`}>
-                                                        {SEVERITY_LEVELS[assessmentData.severity].label}
+                                                    <div className={`font-bold text-sm ${SEVERITY_LEVELS[assessmentData.severity]?.textColor || 'text-green-600'}`}>
+                                                        {SEVERITY_LEVELS[assessmentData.severity]?.label || 'Low'}
                                                     </div>
                                                     <p className="text-xs text-zinc-500">{assessmentData.summary}</p>
                                                 </div>
                                             </div>
+
+                                            {/* ML Disease Categories */}
+                                            {assessmentData.categories && Object.keys(assessmentData.categories).length > 0 && (
+                                                <div className="bg-amber-50 dark:bg-amber-900/15 p-4 rounded-xl border border-amber-200 dark:border-amber-800/40">
+                                                    <h4 className="font-bold text-amber-700 dark:text-amber-300 mb-3 text-sm flex items-center gap-2">
+                                                        <AlertTriangle size={14} /> Areas of Concern
+                                                    </h4>
+                                                    <div className="space-y-3">
+                                                        {Object.entries(assessmentData.categories).slice(0, 3).map(([cat, info]) => (
+                                                            <div key={cat} className="bg-white dark:bg-zinc-800 rounded-lg p-3">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="text-sm">{info.icon}</span>
+                                                                    <span className="font-semibold text-sm text-zinc-900 dark:text-white capitalize">{cat.replace('_', ' ')}</span>
+                                                                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${info.urgency === 'high'
+                                                                        ? 'bg-red-100 text-red-600'
+                                                                        : info.urgency === 'moderate'
+                                                                            ? 'bg-amber-100 text-amber-600'
+                                                                            : 'bg-green-100 text-green-600'
+                                                                        }`}>{info.urgency}</span>
+                                                                </div>
+                                                                <div className="flex flex-wrap gap-1 mb-1">
+                                                                    {info.possibleDiseases?.slice(0, 3).map((d, i) => (
+                                                                        <span key={i} className="text-xs bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 px-2 py-0.5 rounded">{d}</span>
+                                                                    ))}
+                                                                </div>
+                                                                {info.matchedKeywords?.length > 0 && (
+                                                                    <p className="text-xs text-zinc-400">Detected: {info.matchedKeywords.join(', ')}</p>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Recommendations */}
                                             <div className="bg-teal-50 dark:bg-teal-900/20 p-4 rounded-xl">
                                                 <h4 className="font-bold text-teal-700 dark:text-teal-300 mb-2 text-sm flex items-center gap-2">
                                                     <CheckCircle size={14} /> Recommendations
                                                 </h4>
                                                 <ul className="space-y-1">
                                                     {assessmentData.recommendations.map((rec, i) => (
-                                                        <li key={i} className="text-xs text-teal-600 dark:text-teal-400 flex items-center gap-2">
-                                                            <span className="w-1 h-1 bg-teal-500 rounded-full" />{rec}
+                                                        <li key={i} className="text-xs text-teal-600 dark:text-teal-400 flex items-start gap-2">
+                                                            <span className="w-1 h-1 bg-teal-500 rounded-full mt-1.5 shrink-0" />{rec}
                                                         </li>
                                                     ))}
                                                 </ul>
@@ -512,17 +682,21 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
                                     )}
                                 </div>
                             ) : fullTranscript.length > 0 ? (
-                                <div className="space-y-4">
+                                <div className="space-y-3">
                                     {fullTranscript.map((msg, i) => (
                                         <div key={i} className={`flex ${msg.role === 'You' ? 'justify-end' : 'justify-start'}`}>
-                                            <div className={`max-w-[85%] p-3 rounded-2xl ${msg.role === 'You'
+                                            <div className={`max-w-[85%] px-4 py-3 rounded-2xl ${msg.role === 'You'
                                                 ? 'bg-teal-500 text-white rounded-br-sm'
                                                 : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-bl-sm'
                                                 }`}>
-                                                <p className="text-sm">{msg.text}</p>
+                                                <p className="text-[13px] leading-relaxed">{msg.text}</p>
+                                                <p className={`text-[10px] mt-1 ${msg.role === 'You' ? 'text-teal-200' : 'text-zinc-400'}`}>
+                                                    {msg.role === 'You' ? 'You' : 'VIRA'}
+                                                </p>
                                             </div>
                                         </div>
                                     ))}
+                                    <div ref={chatEndRef} />
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-center">
@@ -531,11 +705,35 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
                                     </div>
                                     <h4 className="font-bold text-zinc-900 dark:text-white mb-1">Start a health check to begin</h4>
                                     <p className="text-sm text-zinc-500">
-                                        VIRA will listen and help assess your concerns
+                                        Talk or type — VIRA will listen and help assess your concerns
                                     </p>
                                 </div>
                             )}
                         </div>
+
+                        {/* WhatsApp-style Chat Input */}
+                        {sessionStatus === 'active' && (
+                            <div className="px-4 py-3 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        ref={chatInputRef}
+                                        type="text"
+                                        value={chatInput}
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder="Type a message..."
+                                        className="flex-1 px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-full text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    />
+                                    <button
+                                        onClick={handleSendText}
+                                        disabled={!chatInput.trim()}
+                                        className="w-11 h-11 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white flex items-center justify-center disabled:opacity-40 hover:from-teal-400 hover:to-cyan-400 transition-all shrink-0"
+                                    >
+                                        <Send size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
