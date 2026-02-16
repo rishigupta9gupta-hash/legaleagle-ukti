@@ -46,7 +46,8 @@ export const createClientSession = (user) => {
         name: user.name,
         email: user.email,
         picture: user.picture || '',
-        role: user.role || 'user'
+        role: user.role || 'user',
+        isAdmin: user.isAdmin || false
     };
 
     localStorage.setItem('intervue_user', JSON.stringify(sessionUser));
@@ -65,8 +66,15 @@ export const getClientSession = () => {
     }
 };
 
-export const logoutUser = () => {
+export const logoutUser = async () => {
     if (typeof window === 'undefined') return;
+
+    try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {
+        console.error('Logout API call failed', e);
+    }
+
     localStorage.removeItem('intervue_user');
     window.dispatchEvent(new Event('storage'));
     window.location.href = '/login';

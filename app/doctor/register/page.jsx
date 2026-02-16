@@ -15,6 +15,7 @@ export default function DoctorRegisterPage() {
         specialization: "",
         experience_years: "",
         bio: "",
+        certificationFile: null
     });
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
@@ -42,31 +43,51 @@ export default function DoctorRegisterPage() {
         setError("");
         setLoading(true);
 
-        if (!formData.name || !formData.email || !formData.password || !formData.specialization) {
-            setError("Please fill in all required fields.");
+        if (!formData.name || !formData.email || !formData.password || !formData.specialization || !formData.certificationFile) {
+            setError("Please fill in all required fields, including certification.");
             setLoading(false);
             return;
         }
 
         try {
+            // 1. Upload certification
+            const uploadData = new FormData();
+            uploadData.append('file', formData.certificationFile);
+
+            const uploadRes = await fetch('/api/upload', {
+                method: 'POST',
+                body: uploadData
+            });
+
+            const uploadResult = await uploadRes.json();
+
+            if (!uploadResult.success) {
+                throw new Error(uploadResult.message || 'File upload failed');
+            }
+
+            const certificationUrl = uploadResult.url;
+
+            // 2. Register doctor
             const res = await fetch("/api/auth/doctor-register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     ...formData,
                     experience_years: parseInt(formData.experience_years) || 0,
+                    certificationUrl,
+                    certificationFile: undefined // don't send file object
                 }),
             });
 
             const data = await res.json();
 
             if (data.success) {
-                router.push("/login?success=1&role=doctor");
+                router.push("/login?success=1&role=doctor&message=Account created. Please wait for admin approval.");
             } else {
                 setError(data.message || "Registration failed");
             }
         } catch (err) {
-            setError("Registration failed. Please try again.");
+            setError(err.message || "Registration failed. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -223,6 +244,20 @@ export default function DoctorRegisterPage() {
                                     <option key={s} value={s}>{s}</option>
                                 ))}
                             </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                                <FileText size={14} className="inline mr-1" />Certification (Proof of License) *
+                            </label>
+                            <input
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                onChange={(e) => updateField("certificationFile", e.target.files[0])}
+                                className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                required
+                            />
+                            <p className="text-xs text-zinc-500 mt-1">Upload your medical license or certification.</p>
                         </div>
 
                         <div>

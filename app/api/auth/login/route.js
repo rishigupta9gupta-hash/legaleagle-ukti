@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/app/lib/db';
+import { SignJWT } from 'jose';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
 export async function POST(request) {
     try {
@@ -14,7 +17,7 @@ export async function POST(request) {
 
         // Query user from database
         const result = await query(
-            'SELECT id, name, email, password, role, phone, specialization, created_at FROM users WHERE email = $1',
+            'SELECT id, name, email, password, role, phone, specialization, "isAdmin", avatar_url FROM users WHERE email = $1',
             [email]
         );
 
@@ -27,9 +30,7 @@ export async function POST(request) {
             );
         }
 
-        // In a real app, use bcrypt.compare(password, user.password)
-        // For this prototype (based on "js only" request), we'll do simple comparison
-        // Assuming passwords in DB are stored directly or we add bcrypt later
+        // Simple password comparison (in production use bcrypt)
         if (user.password !== password) {
             return NextResponse.json(
                 { success: false, message: 'Invalid credentials' },
@@ -40,11 +41,37 @@ export async function POST(request) {
         // Return user info (excluding password)
         const { password: _, ...userWithoutPassword } = user;
 
-        return NextResponse.json({
+        // Generate JWT Token
+        const secret = new TextEncoder().encode(JWT_SECRET);
+        const token = await new SignJWT({
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            isAdmin: user.isAdmin
+        })
+            .setProtectedHeader({ alg: 'HS256' })
+            .setExpirationTime('24h')
+            .sign(secret);
+
+        // Create response
+        const response = NextResponse.json({
             success: true,
             user: userWithoutPassword,
             message: 'Login successful'
         });
+
+        // Set HTTP-only cookie
+        response.cookies.set({
+            name: 'token',
+            value: token,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 60 * 60 * 24, // 24 hours
+            path: '/',
+        });
+
+        return response;
 
     } catch (error) {
         console.error('Login error:', error);

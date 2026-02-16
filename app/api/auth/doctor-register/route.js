@@ -3,7 +3,7 @@ import { query } from '@/app/lib/db';
 
 export async function POST(request) {
     try {
-        const { name, email, password, phone, specialization, experience_years, bio } = await request.json();
+        const { name, email, password, phone, specialization, experience_years, bio, certificationUrl } = await request.json();
 
         if (!email || !password || !name || !specialization) {
             return NextResponse.json(
@@ -27,10 +27,10 @@ export async function POST(request) {
 
         // Insert doctor user
         const result = await query(
-            `INSERT INTO users (name, email, password, role, phone, specialization, experience_years, bio) 
-             VALUES ($1, $2, $3, 'doctor', $4, $5, $6, $7) 
-             RETURNING id, name, email, role, phone, specialization, experience_years, bio, created_at`,
-            [name, email, password, phone || null, specialization, experience_years || 0, bio || null]
+            `INSERT INTO users (name, email, password, role, phone, specialization, experience_years, bio, "isApproved", "certificationUrl") 
+             VALUES ($1, $2, $3, 'doctor', $4, $5, $6, $7, false, $8) 
+             RETURNING id, name, email, role, phone, specialization, experience_years, bio, "isApproved", created_at`,
+            [name, email, password, phone || null, specialization, experience_years || 0, bio || null, certificationUrl || null]
         );
 
         const newDoctor = result.rows[0];

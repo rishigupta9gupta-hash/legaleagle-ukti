@@ -18,6 +18,14 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   
+  // Doctor fields
+  isApproved       Boolean   @default(false) // Deprecated: use status
+  status           String    @default("PENDING") // PENDING, APPROVED, SUSPENDED, BANNED
+  certificationUrl String?
+
+  // Admin field
+  isAdmin          Boolean   @default(false)
+  
   // Relations
   sessions      HealthSession[]
   medications   Medication[]

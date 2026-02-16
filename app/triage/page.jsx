@@ -394,46 +394,47 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
     return (
         <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-white to-teal-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950 flex flex-col">
             {/* Header */}
-            <header className="px-6 py-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800">
+            <header className="px-4 sm:px-6 py-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800">
                 <button
                     onClick={() => router.push('/')}
                     className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
                 >
                     <ArrowLeft size={20} />
-                    <span className="font-medium">Back</span>
+                    <span className="font-medium hidden sm:inline">Back</span>
                 </button>
 
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center">
                         <HeartPulse size={20} className="text-white" />
                     </div>
                     <div className="text-center">
-                        <div className="font-bold text-zinc-900 dark:text-white">VIRA</div>
-                        <div className="text-xs text-zinc-500">AI Health Companion</div>
+                        <div className="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">VIRA</div>
+                        <div className="text-xs text-zinc-500 hidden sm:block">AI Health Companion</div>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-4">
                     {/* Buddy Mode Toggle */}
                     <button
                         onClick={() => setIsBuddyMode(!isBuddyMode)}
                         disabled={sessionStatus === 'active'}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium transition-colors ${isBuddyMode
+                        className={`flex items-center gap-2 px-2 sm:px-3 py-2 rounded-full text-sm font-medium transition-colors ${isBuddyMode
                             ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
                             : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
                             } ${sessionStatus === 'active' ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80'}`}
                     >
-                        <span>{isBuddyMode ? '💬 Buddy' : '🩺 Medical'}</span>
+                        <span>{isBuddyMode ? '💬' : '🩺'}</span>
+                        <span className="hidden sm:inline">{isBuddyMode ? 'Buddy' : 'Medical'}</span>
                     </button>
 
                     {/* Language Selector */}
                     <div className="relative">
                         <button
                             onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-                            className="flex items-center gap-2 px-3 py-2 rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-900/50 transition-colors text-sm font-medium"
+                            className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-900/50 transition-colors text-sm font-medium"
                         >
                             <Globe size={16} />
-                            <span>{selectedLanguage.name}</span>
+                            <span className="hidden sm:inline">{selectedLanguage.name}</span>
                             <ChevronDown size={14} className={`transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`} />
                         </button>
 
@@ -458,7 +459,7 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
                     </div>
 
                     {/* Timer */}
-                    <div className="flex items-center gap-2 text-zinc-500">
+                    <div className="flex items-center gap-2 text-zinc-500 hidden sm:flex">
                         <Clock size={18} />
                         <span className="font-mono font-medium">{formatTime(sessionDuration)}</span>
                     </div>
@@ -466,8 +467,8 @@ Start by saying: "Hi, I'm VIRA. How are you feeling today?"`;
             </header>
 
             {/* Main Content */}
-            <div className="flex-1 flex items-center justify-center p-6">
-                <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
+                <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
 
                     {/* Left Panel - AI Avatar Card */}
                     <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-zinc-100 dark:border-zinc-800">

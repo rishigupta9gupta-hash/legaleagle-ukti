@@ -1,49 +1,38 @@
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { writeFile } from 'fs/promises';
+import { join } from 'path';
 
-export const dynamic = 'force-dynamic';
-
-export async function POST(req) {
+export async function POST(request) {
     try {
-        const formData = await req.formData();
-        const file = formData.get('file');
-        const type = formData.get('type') || 'general'; // avatar, certification, general
+        const data = await request.formData();
+        const file = data.get('file');
 
         if (!file) {
-            return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400 });
+            return NextResponse.json({ success: false, message: 'No file uploaded' }, { status: 400 });
         }
 
-        // Create uploads directory if it doesn't exist
-        const uploadsDir = path.join(process.cwd(), 'public', 'uploads', type);
-        await mkdir(uploadsDir, { recursive: true });
-
-        // Generate unique filename
-        const ext = path.extname(file.name) || '.png';
-        const timestamp = Date.now();
-        const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_').replace(ext, '');
-        const filename = `${safeName}_${timestamp}${ext}`;
-
-        // Write file to public/uploads/{type}/
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
-        const filePath = path.join(uploadsDir, filename);
-        await writeFile(filePath, buffer);
 
-        // Return the public URL path (stored in DB)
-        const publicPath = `/uploads/${type}/${filename}`;
+        // Save to public/uploads/certifications
+        const uploadDir = join(process.cwd(), 'public/uploads/certifications');
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const filename = uniqueSuffix + '-' + file.name.replace(/[^a-zA-Z0-9.-]/g, '');
+        const filepath = join(uploadDir, filename);
 
-        return NextResponse.json({
-            success: true,
-            url: publicPath,
-            filename: filename,
-            message: 'File uploaded successfully'
-        });
+        // Ensure directory exists
+        const fs = require('fs');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        await writeFile(filepath, buffer);
+
+        const url = `/uploads/certifications/${filename}`;
+
+        return NextResponse.json({ success: true, url });
     } catch (error) {
         console.error('Upload error:', error);
-        return NextResponse.json(
-            { success: false, error: 'Failed to upload file', details: error.message },
-            { status: 500 }
-        );
+        return NextResponse.json({ success: false, message: 'Upload failed' }, { status: 500 });
     }
 }
