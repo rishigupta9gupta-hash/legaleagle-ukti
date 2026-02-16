@@ -14,23 +14,11 @@ export async function POST(request) {
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
-        // Save to public/uploads/certifications
-        const uploadDir = join(process.cwd(), 'public/uploads/certifications');
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const filename = uniqueSuffix + '-' + file.name.replace(/[^a-zA-Z0-9.-]/g, '');
-        const filepath = join(uploadDir, filename);
+        // Convert to Base64
+        const mimeType = file.type || 'application/octet-stream';
+        const base64String = `data:${mimeType};base64,${buffer.toString('base64')}`;
 
-        // Ensure directory exists
-        const fs = require('fs');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-
-        await writeFile(filepath, buffer);
-
-        const url = `/uploads/certifications/${filename}`;
-
-        return NextResponse.json({ success: true, url });
+        return NextResponse.json({ success: true, url: base64String });
     } catch (error) {
         console.error('Upload Error Details:', error);
         return NextResponse.json(
