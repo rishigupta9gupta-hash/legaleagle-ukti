@@ -82,7 +82,7 @@ export default function DoctorRegisterPage() {
             const data = await res.json();
 
             if (data.success) {
-                router.push("/login?success=1&role=doctor&message=Account created. Please wait for admin approval.");
+                router.push("/doctor/pending");
             } else {
                 setError(data.message || "Registration failed");
             }
@@ -252,12 +252,24 @@ export default function DoctorRegisterPage() {
                             </label>
                             <input
                                 type="file"
-                                accept=".pdf,.jpg,.jpeg,.png"
-                                onChange={(e) => updateField("certificationFile", e.target.files[0])}
+                                accept="image/jpeg,image/png,image/jpg,application/pdf"
+                                onChange={(e) => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                        if (file.size > 4 * 1024 * 1024) { // 4MB Limit
+                                            setError("File size too large. Please upload a file smaller than 4MB.");
+                                            e.target.value = ""; // Clear input
+                                            updateField("certificationFile", null);
+                                        } else {
+                                            setError("");
+                                            updateField("certificationFile", file);
+                                        }
+                                    }
+                                }}
                                 className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 focus:ring-2 focus:ring-emerald-500 outline-none"
                                 required
                             />
-                            <p className="text-xs text-zinc-500 mt-1">Upload your medical license or certification.</p>
+                            <p className="text-xs text-zinc-500 mt-1">Upload medical license (Max 4MB). PDF, JPG, PNG only.</p>
                         </div>
 
                         <div>

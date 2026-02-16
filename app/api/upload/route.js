@@ -32,7 +32,13 @@ export async function POST(request) {
 
         return NextResponse.json({ success: true, url });
     } catch (error) {
-        console.error('Upload error:', error);
-        return NextResponse.json({ success: false, message: 'Upload failed' }, { status: 500 });
+        console.error('Upload Error Details:', error);
+        return NextResponse.json(
+            {
+                success: false,
+                message: error.message || 'File upload failed. Server error.'
+            },
+            { status: 500 }
+        );
     }
 }

@@ -27,9 +27,9 @@ export async function POST(request) {
 
         // Insert doctor user
         const result = await query(
-            `INSERT INTO users (name, email, password, role, phone, specialization, experience_years, bio, "isApproved", "certificationUrl") 
-             VALUES ($1, $2, $3, 'doctor', $4, $5, $6, $7, false, $8) 
-             RETURNING id, name, email, role, phone, specialization, experience_years, bio, "isApproved", created_at`,
+            `INSERT INTO users (name, email, password, role, phone, specialization, experience_years, bio, "isApproved", "certificationUrl", "status") 
+             VALUES ($1, $2, $3, 'doctor', $4, $5, $6, $7, false, $8, 'PENDING') 
+             RETURNING id, name, email, role, phone, specialization, experience_years, bio, "isApproved", "status", created_at`,
             [name, email, password, phone || null, specialization, experience_years || 0, bio || null, certificationUrl || null]
         );
 

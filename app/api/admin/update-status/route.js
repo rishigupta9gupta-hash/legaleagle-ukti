@@ -17,10 +17,14 @@ export async function POST(request) {
         // Sync isApproved for backward compatibility
         const isApproved = status === 'APPROVED';
 
-        await query(
+        const result = await query(
             `UPDATE users SET "status" = $1, "isApproved" = $2 WHERE id = $3 AND role = 'doctor'`,
             [status, isApproved, doctorId]
         );
+
+        if (result.rowCount === 0) {
+            return NextResponse.json({ success: false, message: 'Doctor not found or not a doctor role' }, { status: 404 });
+        }
 
         return NextResponse.json({
             success: true,

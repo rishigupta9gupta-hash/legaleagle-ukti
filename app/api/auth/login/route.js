@@ -17,7 +17,7 @@ export async function POST(request) {
 
         // Query user from database
         const result = await query(
-            'SELECT id, name, email, password, role, phone, specialization, "isAdmin", avatar_url FROM users WHERE email = $1',
+            'SELECT id, name, email, password, role, phone, specialization, "isAdmin", avatar_url, "status", "isApproved" FROM users WHERE email = $1',
             [email]
         );
 
@@ -35,6 +35,17 @@ export async function POST(request) {
             return NextResponse.json(
                 { success: false, message: 'Invalid credentials' },
                 { status: 401 }
+            );
+        }
+
+        if (user.role === 'doctor' && user.status !== 'APPROVED') {
+            let message = 'Your account is pending approval.';
+            if (user.status === 'SUSPENDED') message = 'Your account has been suspended.';
+            if (user.status === 'BANNED') message = 'Your account has been banned.';
+
+            return NextResponse.json(
+                { success: false, message },
+                { status: 403 }
             );
         }
 
