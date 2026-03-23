@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Script from 'next/script';
 import { ArrowRight, AlertCircle, ArrowLeft } from 'lucide-react';
-import { registerUser } from '@/app/utils/auth-api';
-import { parseJwt, googleAuthenticate } from '@/app/utils/auth';
+import { registerUser, googleLogin } from '@/app/utils/auth-api';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -17,8 +16,10 @@ export default function SignupPage() {
     name: '',
     email: '',
     password: '',
+    confirmPassword: '',
   });
 
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -50,29 +51,39 @@ export default function SignupPage() {
     initializeGoogleAuth();
   }, []);
 
-  const handleGoogleCallback = (response) => {
+  const handleGoogleCallback = async (response) => {
     try {
-      const userObj = parseJwt(response.credential);
-      if (userObj.email) {
-        const result = googleAuthenticate(userObj);
+      if (response.credential) {
+        setIsLoading(true);
+        const result = await googleLogin(response.credential);
         if (result.success) {
-          router.push('/');
+          router.push('/dashboard');
         } else {
-          setError('Authentication failed.');
+          setError(result.message || 'Google authentication failed.');
+          setIsLoading(false);
         }
       }
     } catch {
       setError('Google authentication failed. Please try again.');
+      setIsLoading(false);
     }
   };
 
   const handleSignup = async (e) => {
     e.preventDefault();
+    setError('');
 
-    if (!formData.name || !formData.email || !formData.password) {
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
       setError('Please fill in all fields.');
       return;
     }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setIsLoading(true);
 
     const newUser = {
       name: formData.name,
@@ -83,10 +94,11 @@ export default function SignupPage() {
     const result = await registerUser(newUser);
 
     if (result.success) {
-      // Redirect to login page or auto-login
+      // Redirect to login page
       router.push('/login?success=1');
     } else {
       setError(result.message);
+      setIsLoading(false);
     }
   };
 
@@ -146,14 +158,29 @@ export default function SignupPage() {
               className="w-full px-4 py-3 border rounded-lg bg-zinc-50 dark:bg-zinc-950"
             />
 
+            <input
+              type="password"
+              placeholder="Confirm Password"
+              value={formData.confirmPassword}
+              onChange={(e) => {
+                setFormData({ ...formData, confirmPassword: e.target.value });
+                if (error) setError('');
+              }}
+              className="w-full px-4 py-3 border rounded-lg bg-zinc-50 dark:bg-zinc-950"
+              required
+            />
+
             {error && (
               <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 p-3 rounded-lg">
                 <AlertCircle size={16} /> {error}
               </div>
             )}
 
-            <button className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">
-              Create Account <ArrowRight size={18} />
+            <button 
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:shadow-lg disabled:opacity-50 transition-all"
+            >
+              {isLoading ? "Creating Account..." : "Create Account"} <ArrowRight size={18} />
             </button>
           </form>
 

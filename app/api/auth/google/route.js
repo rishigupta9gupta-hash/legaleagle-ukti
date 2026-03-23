@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import User from '@/app/models/User';
+import UserPreference from '@/app/models/UserPreference';
+import { SignJWT } from 'jose';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
 export async function POST(request) {
     try {
+        await dbConnect();
         const { token } = await request.json();
 
         if (!token) {
@@ -26,38 +32,53 @@ export async function POST(request) {
         const { email, name, sub: googleId } = googleData;
 
         // Check if user exists
-        const existingUser = await query('SELECT * FROM users WHERE email = $1', [email]);
-        let user;
+        let user = await User.findOne({ email });
 
-        if (existingUser.rows.length > 0) {
-            user = existingUser.rows[0];
-            // Ideally update name or google_id if needed
-        } else {
+        if (!user) {
             // Create user
-            // Note: Password is NULL for Google users
-            const result = await query(
-                `INSERT INTO users (email, name) VALUES ($1, $2) RETURNING *`,
-                [email, name]
-            );
-            user = result.rows[0];
+            user = await User.create({ email, name, role: 'user' });
 
             // Create default preferences
-            await query(
-                `INSERT INTO user_preferences (user_id) VALUES ($1)`,
-                [user.id]
-            );
+            await UserPreference.create({ user_id: user._id });
         }
 
-        // Return user data (matching login response)
-        return NextResponse.json({
+        // Generate JWT Token (same as login route)
+        const secret = new TextEncoder().encode(JWT_SECRET);
+        const jwtToken = await new SignJWT({
+            id: user._id.toString(),
+            email: user.email,
+            role: user.role || 'user',
+            isAdmin: user.isAdmin || false
+        })
+            .setProtectedHeader({ alg: 'HS256' })
+            .setExpirationTime('24h')
+            .sign(secret);
+
+        // Create response
+        const response = NextResponse.json({
             success: true,
             user: {
-                id: user.id,
+                id: user._id,
                 name: user.name,
-                email: user.email
+                email: user.email,
+                role: user.role || 'user',
+                isAdmin: user.isAdmin || false
             },
             message: 'Google login successful'
         });
+
+        // Set HTTP-only cookie (same as login route)
+        response.cookies.set({
+            name: 'token',
+            value: jwtToken,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 60 * 60 * 24,
+            path: '/',
+        });
+
+        return response;
 
     } catch (error) {
         console.error('Google Auth Error:', error);

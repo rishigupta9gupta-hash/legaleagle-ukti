@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import HealthSession from '@/app/models/HealthSession';
 
 export async function GET(request) {
     try {
+        await dbConnect();
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
 
@@ -13,14 +15,17 @@ export async function GET(request) {
             );
         }
 
-        const result = await query(
-            'SELECT * FROM health_sessions WHERE user_id = $1 ORDER BY created_at DESC',
-            [userId]
-        );
+        const sessions = await HealthSession.find({ user_id: userId }).sort({ createdAt: -1 }).lean();
+
+        const mappedSessions = sessions.map(s => ({
+            ...s,
+            created_at: s.createdAt,
+            id: s._id
+        }));
 
         return NextResponse.json({
             success: true,
-            data: result.rows
+            data: mappedSessions
         });
     } catch (error) {
         console.error('Database Error:', error);
@@ -33,6 +38,7 @@ export async function GET(request) {
 
 export async function POST(request) {
     try {
+        await dbConnect();
         const body = await request.json();
         const {
             userId,
@@ -52,26 +58,23 @@ export async function POST(request) {
             );
         }
 
-        const result = await query(
-            `INSERT INTO health_sessions 
-       (user_id, duration, transcript, summary, severity, recommendations, mode, language) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-       RETURNING *`,
-            [
-                userId,
-                duration || 0,
-                JSON.stringify(transcript || []),
-                summary || '',
-                severity || 'low',
-                recommendations || [],
-                mode,
-                language
-            ]
-        );
+        const newSession = await HealthSession.create({
+            user_id: userId,
+            duration: duration || 0,
+            transcript: transcript || [],
+            summary: summary || '',
+            severity: severity || 'low',
+            recommendations: recommendations || [],
+            mode,
+            language
+        });
+
+        const sessionData = newSession.toObject();
+        sessionData.created_at = sessionData.createdAt;
 
         return NextResponse.json({
             success: true,
-            data: result.rows[0]
+            data: sessionData
         });
     } catch (error) {
         console.error('Database Error:', error);

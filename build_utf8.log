@@ -1,0 +1,84 @@
+﻿
+> my-app@0.1.0 build
+> next build
+
+  Γû▓ Next.js 14.2.35
+
+   Creating an optimized production build ...
+node.exe : Failed to 
+compile.
+At line:1 char:1
++ & "C:\Program Files\
+nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (Failed to    
+ compile.:String)     
+[], RemoteExcepti    
+on
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+
+./app/api/admin/approv
+e/route.js
+Module not found: 
+Can't resolve 
+'@/app/lib/db'
+
+https://nextjs.org/doc
+s/messages/module-not-
+found
+
+./app/api/admin/delete
+/route.js
+Module not found: 
+Can't resolve 
+'@/app/lib/db'
+
+https://nextjs.org/doc
+s/messages/module-not-
+found
+
+./app/api/admin/doctor
+s/route.js
+Module not found: 
+Can't resolve 
+'@/app/lib/db'
+
+https://nextjs.org/doc
+s/messages/module-not-
+found
+
+./app/api/admin/update
+-status/route.js
+Module not found: 
+Can't resolve 
+'@/app/lib/db'
+
+https://nextjs.org/doc
+s/messages/module-not-
+found
+
+./app/api/doctors/rout
+e.js
+Module not found: 
+Can't resolve 
+'@/app/lib/db'
+
+https://nextjs.org/doc
+s/messages/module-not-
+found
+
+
+> Build failed 
+because of webpack 
+errors

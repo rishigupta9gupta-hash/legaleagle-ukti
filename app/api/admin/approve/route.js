@@ -1,18 +1,17 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import User from '@/app/models/User';
 
 export async function POST(request) {
     try {
+        await dbConnect();
         const { doctorId } = await request.json();
 
         if (!doctorId) {
             return NextResponse.json({ success: false, message: 'Doctor ID is required' }, { status: 400 });
         }
 
-        await query(
-            `UPDATE users SET "isApproved" = true WHERE id = $1 AND role = 'doctor'`,
-            [doctorId]
-        );
+        await User.updateOne({ _id: doctorId, role: 'doctor' }, { $set: { isApproved: true, status: 'APPROVED' } });
 
         return NextResponse.json({
             success: true,

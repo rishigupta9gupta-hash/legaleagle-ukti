@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import Certification from '@/app/models/Certification';
 
 export const dynamic = 'force-dynamic';
 
-// GET: List certifications for a doctor
 export async function GET(req) {
     try {
+        await dbConnect();
         const { searchParams } = new URL(req.url);
         const email = searchParams.get('email');
 
@@ -13,23 +14,24 @@ export async function GET(req) {
             return NextResponse.json({ success: false, error: 'Email is required' }, { status: 400 });
         }
 
-        const result = await query(
-            `SELECT id, title, file_url, file_type, created_at
-             FROM certifications WHERE user_email = $1
-             ORDER BY created_at DESC`,
-            [email]
-        );
+        const certs = await Certification.find({ user_email: email }).sort({ createdAt: -1 }).lean();
 
-        return NextResponse.json({ success: true, certifications: result.rows });
+        const mappedCerts = certs.map(c => ({
+            ...c,
+            created_at: c.createdAt,
+            id: c._id
+        }));
+
+        return NextResponse.json({ success: true, certifications: mappedCerts });
     } catch (error) {
         console.error('Error fetching certifications:', error);
         return NextResponse.json({ success: false, error: 'Failed to fetch certifications' }, { status: 500 });
     }
 }
 
-// POST: Add a new certification
 export async function POST(req) {
     try {
+        await dbConnect();
         const { email, title, file_url, file_type } = await req.json();
 
         if (!email || !title || !file_url) {
@@ -39,16 +41,20 @@ export async function POST(req) {
             );
         }
 
-        const result = await query(
-            `INSERT INTO certifications (id, user_email, title, file_url, file_type)
-             VALUES (gen_random_uuid()::text, $1, $2, $3, $4)
-             RETURNING id, title, file_url, file_type, created_at`,
-            [email, title, file_url, file_type || 'image']
-        );
+        const cert = await Certification.create({
+            user_email: email,
+            title,
+            file_url,
+            file_type: file_type || 'image'
+        });
+
+        const certData = cert.toObject();
+        certData.created_at = certData.createdAt;
+        certData.id = certData._id;
 
         return NextResponse.json({
             success: true,
-            certification: result.rows[0],
+            certification: certData,
             message: 'Certification added successfully'
         }, { status: 201 });
     } catch (error) {
@@ -57,9 +63,9 @@ export async function POST(req) {
     }
 }
 
-// DELETE: Remove a certification
 export async function DELETE(req) {
     try {
+        await dbConnect();
         const { id, email } = await req.json();
 
         if (!id || !email) {
@@ -69,12 +75,9 @@ export async function DELETE(req) {
             );
         }
 
-        const result = await query(
-            `DELETE FROM certifications WHERE id = $1 AND user_email = $2 RETURNING id`,
-            [id, email]
-        );
+        const deleted = await Certification.findOneAndDelete({ _id: id, user_email: email });
 
-        if (result.rows.length === 0) {
+        if (!deleted) {
             return NextResponse.json({ success: false, error: 'Certification not found' }, { status: 404 });
         }
 

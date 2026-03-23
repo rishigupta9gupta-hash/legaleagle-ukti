@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import {
     ArrowLeft, Heart, Pill, FileText, Activity,
     HeartPulse, ChevronRight, Calendar, Settings,
-    Droplets, TrendingUp, Clock, User, MessageCircle
+    Droplets, TrendingUp, Clock, User, MessageCircle, Camera
 } from "lucide-react";
 import { getMedications } from "@/app/utils/medication-api";
 import { getSessions } from "@/app/utils/session-api";
@@ -86,6 +86,7 @@ export default function DashboardPage() {
 
     const quickActions = [
         { name: 'Health Check', path: '/triage', icon: Heart, color: 'from-teal-500 to-cyan-500' },
+        { name: 'Skin Scan', path: '/skin-check', icon: Camera, color: 'from-rose-500 to-amber-500' },
         { name: 'Medications', path: '/medication', icon: Pill, color: 'from-orange-500 to-pink-500' },
         { name: 'Reports', path: '/reports', icon: FileText, color: 'from-blue-500 to-indigo-500' },
         { name: 'Chat with Doctors', path: '/doctors', icon: MessageCircle, color: 'from-emerald-500 to-teal-500' }

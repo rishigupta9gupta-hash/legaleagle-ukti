@@ -5,12 +5,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, AlertCircle, ArrowLeft, CheckCircle } from "lucide-react";
 import {
-  loginUser
+  loginUser,
+  googleLogin
 } from "@/app/utils/auth-api";
-import {
-  parseJwt,
-  googleAuthenticate,
-} from "@/app/utils/auth";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -18,10 +15,17 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [credentials, setCredentials] = useState({ email: "", password: "" });
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+
+  const handleInputChange = (e) => {
+    setCredentials({ ...credentials, [e.target.name]: e.target.value });
+    if (error) {
+      setError("");
+    }
+  };
 
   // Success message from signup → /login?success=1
   useEffect(() => {
@@ -32,11 +36,12 @@ function LoginForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
     setError("");
     setSuccessMessage("");
 
     try {
-      const result = await loginUser(email, password);
+      const result = await loginUser(credentials.email, credentials.password);
       if (result.success) {
         // Redirect based on role
         const role = result.user?.role || 'user';
@@ -46,6 +51,8 @@ function LoginForm() {
       }
     } catch (err) {
       setError("Login failed. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -74,11 +81,6 @@ function LoginForm() {
           callback: async (response) => {
             // This logic matches the previous handleGoogleCallback implementation
             try {
-              // We need googleLogin from utils/auth-api which I saw earlier, 
-              // but imports here are mixed. Let's stick to existing logic pattern.
-              // But wait, in Step 801 I saw 'googleLogin' imported from 'auth-api'.
-              // Let's assume we import googleLogin.
-              const { googleLogin } = await import("@/app/utils/auth-api");
               if (response.credential) {
                 const result = await googleLogin(response.credential);
                 if (result.success) {
@@ -175,8 +177,9 @@ function LoginForm() {
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Email</label>
               <input
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                name="email"
+                value={credentials.email}
+                onChange={handleInputChange}
                 className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 focus:ring-2 focus:ring-teal-500 outline-none transition-all"
                 placeholder="name@example.com"
                 required
@@ -190,8 +193,9 @@ function LoginForm() {
               </div>
               <input
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                name="password"
+                value={credentials.password}
+                onChange={handleInputChange}
                 className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 focus:ring-2 focus:ring-teal-500 outline-none transition-all"
                 placeholder="••••••••"
                 required
@@ -200,9 +204,10 @@ function LoginForm() {
 
             <button
               type="submit"
-              className="w-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-3 rounded-xl font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+              disabled={isLoading}
+              className="w-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-3 rounded-xl font-bold hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center gap-2"
             >
-              Sign In <ArrowRight size={18} />
+              {isLoading ? "Signing In..." : "Sign In"} <ArrowRight size={18} />
             </button>
           </form>
 

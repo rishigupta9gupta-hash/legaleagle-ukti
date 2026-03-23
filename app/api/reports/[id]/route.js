@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import Report from '@/app/models/Report';
 
 export async function DELETE(request, { params }) {
     try {
+        await dbConnect();
         const { id } = params;
 
         if (!id) {
@@ -12,7 +14,7 @@ export async function DELETE(request, { params }) {
             );
         }
 
-        await query('DELETE FROM reports WHERE id = $1', [id]);
+        await Report.findByIdAndDelete(id);
 
         return NextResponse.json({
             success: true,

@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import User from '@/app/models/User';
 
 export const dynamic = 'force-dynamic';
 
-// GET: Fetch full profile by email
 export async function GET(req) {
     try {
+        await dbConnect();
         const { searchParams } = new URL(req.url);
         const email = searchParams.get('email');
 
@@ -13,26 +14,25 @@ export async function GET(req) {
             return NextResponse.json({ success: false, error: 'Email is required' }, { status: 400 });
         }
 
-        const result = await query(
-            `SELECT id, name, email, role, phone, specialization, experience_years, bio, avatar_url, created_at 
-             FROM users WHERE email = $1`,
-            [email]
-        );
+        const user = await User.findOne({ email }).select('id name email role phone specialization experience_years bio avatar_url createdAt').lean();
 
-        if (result.rows.length === 0) {
+        if (!user) {
             return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
         }
 
-        return NextResponse.json({ success: true, user: result.rows[0] });
+        user.created_at = user.createdAt;
+        user.id = user._id;
+
+        return NextResponse.json({ success: true, user });
     } catch (error) {
         console.error('Error fetching profile:', error);
         return NextResponse.json({ success: false, error: 'Failed to fetch profile' }, { status: 500 });
     }
 }
 
-// PUT: Update user profile
 export async function PUT(req) {
     try {
+        await dbConnect();
         const body = await req.json();
         const { email, name, phone, bio, avatar_url, specialization, experience_years } = body;
 
@@ -40,34 +40,33 @@ export async function PUT(req) {
             return NextResponse.json({ success: false, error: 'Email is required' }, { status: 400 });
         }
 
-        // Build dynamic update query
-        const fields = [];
-        const values = [];
-        let paramIndex = 1;
+        const updateData = {};
+        if (name !== undefined) updateData.name = name;
+        if (phone !== undefined) updateData.phone = phone;
+        if (bio !== undefined) updateData.bio = bio;
+        if (avatar_url !== undefined) updateData.avatar_url = avatar_url;
+        if (specialization !== undefined) updateData.specialization = specialization;
+        if (experience_years !== undefined) updateData.experience_years = experience_years;
 
-        if (name !== undefined) { fields.push(`name = $${paramIndex++}`); values.push(name); }
-        if (phone !== undefined) { fields.push(`phone = $${paramIndex++}`); values.push(phone); }
-        if (bio !== undefined) { fields.push(`bio = $${paramIndex++}`); values.push(bio); }
-        if (avatar_url !== undefined) { fields.push(`avatar_url = $${paramIndex++}`); values.push(avatar_url); }
-        if (specialization !== undefined) { fields.push(`specialization = $${paramIndex++}`); values.push(specialization); }
-        if (experience_years !== undefined) { fields.push(`experience_years = $${paramIndex++}`); values.push(experience_years); }
-
-        if (fields.length === 0) {
+        if (Object.keys(updateData).length === 0) {
             return NextResponse.json({ success: false, error: 'No fields to update' }, { status: 400 });
         }
 
-        values.push(email);
-        const sql = `UPDATE users SET ${fields.join(', ')} WHERE email = $${paramIndex} RETURNING id, name, email, role, phone, specialization, experience_years, bio, avatar_url`;
+        const updatedUser = await User.findOneAndUpdate(
+            { email },
+            { $set: updateData },
+            { new: true }
+        ).select('id name email role phone specialization experience_years bio avatar_url').lean();
 
-        const result = await query(sql, values);
-
-        if (result.rows.length === 0) {
+        if (!updatedUser) {
             return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
         }
+        
+        updatedUser.id = updatedUser._id;
 
         return NextResponse.json({
             success: true,
-            user: result.rows[0],
+            user: updatedUser,
             message: 'Profile updated successfully'
         });
     } catch (error) {

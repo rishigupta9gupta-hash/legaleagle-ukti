@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import Report from '@/app/models/Report';
 
 export async function GET(request) {
     try {
+        await dbConnect();
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
 
@@ -13,14 +15,20 @@ export async function GET(request) {
             );
         }
 
-        const result = await query(
-            'SELECT * FROM reports WHERE user_id = $1 ORDER BY created_at DESC',
-            [userId]
-        );
+        const reports = await Report.find({ user_id: userId }).sort({ createdAt: -1 }).lean();
+
+        const mappedReports = reports.map(r => ({
+            ...r,
+            created_at: r.createdAt,
+            file_name: r.fileName,
+            file_type: r.fileType,
+            file_url: r.fileUrl,
+            id: r._id
+        }));
 
         return NextResponse.json({
             success: true,
-            data: result.rows
+            data: mappedReports
         });
     } catch (error) {
         console.error('Database Error:', error);
@@ -33,6 +41,7 @@ export async function GET(request) {
 
 export async function POST(request) {
     try {
+        await dbConnect();
         const body = await request.json();
         const { userId, fileName, fileType, fileUrl, analysis, summary } = body;
 
@@ -43,17 +52,24 @@ export async function POST(request) {
             );
         }
 
-        const result = await query(
-            `INSERT INTO reports 
-       (user_id, file_name, file_type, file_url, analysis, summary) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
-       RETURNING *`,
-            [userId, fileName, fileType, fileUrl, analysis, summary]
-        );
+        const newReport = await Report.create({
+            user_id: userId,
+            fileName: fileName,
+            fileType: fileType,
+            fileUrl: fileUrl,
+            analysis,
+            summary
+        });
+
+        const reportData = newReport.toObject();
+        reportData.created_at = reportData.createdAt;
+        reportData.file_name = reportData.fileName;
+        reportData.file_type = reportData.fileType;
+        reportData.file_url = reportData.fileUrl;
 
         return NextResponse.json({
             success: true,
-            data: result.rows[0]
+            data: reportData
         });
     } catch (error) {
         console.error('Database Error:', error);

@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import User from '@/app/models/User';
+import PasswordReset from '@/app/models/PasswordReset';
 import nodemailer from 'nodemailer';
 import { randomBytes } from 'crypto';
 
 export async function POST(request) {
     try {
+        await dbConnect();
         const { email } = await request.json();
 
         if (!email) {
@@ -12,8 +15,8 @@ export async function POST(request) {
         }
 
         // Check user
-        const userRes = await query('SELECT * FROM users WHERE email = $1', [email]);
-        if (userRes.rows.length === 0) {
+        const user = await User.findOne({ email });
+        if (!user) {
             // Security: Don't reveal valid emails
             return NextResponse.json({ success: true, message: 'If this email is registered, you will receive a reset link.' });
         }
@@ -23,10 +26,7 @@ export async function POST(request) {
         const expires = new Date(Date.now() + 3600000); // 1 hour
 
         // Save Token
-        await query(
-            'INSERT INTO password_resets (email, token, expires) VALUES ($1, $2, $3)',
-            [email, token, expires]
-        );
+        await PasswordReset.create({ email, token, expires });
 
         // Send Email
         const transporter = nodemailer.createTransport({

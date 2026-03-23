@@ -84,57 +84,141 @@ export default function ProgramsPage() {
     const [moodLog, setMoodLog] = useState([]);
     const [waterIntake, setWaterIntake] = useState(0);
 
-    // Load progress from localStorage
+    // Load initial data from localStorage for fast UI
     useEffect(() => {
-        const saved = localStorage.getItem('viraProgramProgress');
-        if (saved) setProgress(JSON.parse(saved));
+        const loadInitial = async () => {
+            // Read localStorage immediately
+            const saved = localStorage.getItem('viraProgramProgress');
+            if (saved) setProgress(JSON.parse(saved));
 
-        const savedMood = localStorage.getItem('viraMoodLog');
-        if (savedMood) setMoodLog(JSON.parse(savedMood));
+            const savedMood = localStorage.getItem('viraMoodLog');
+            if (savedMood) setMoodLog(JSON.parse(savedMood));
 
-        const savedWater = localStorage.getItem('viraWater');
-        if (savedWater) {
-            const data = JSON.parse(savedWater);
-            if (data.date === new Date().toDateString()) {
-                setWaterIntake(data.glasses);
+            const savedWater = localStorage.getItem('viraWater');
+            if (savedWater) {
+                const data = JSON.parse(savedWater);
+                if (data.date === new Date().toDateString()) {
+                    setWaterIntake(data.glasses);
+                }
             }
-        }
+
+            // Sync with backend API
+            try {
+                const res = await fetch('/api/programs');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && data.programs) {
+                        data.programs.forEach(prog => {
+                            // Merge progress
+                            if (prog.progress) {
+                                setProgress(prev => ({ ...prev, ...prog.progress }));
+                            }
+                            // Merge mood logs
+                            if (prog.moodLogs && prog.moodLogs.length > 0) {
+                                setMoodLog(prog.moodLogs);
+                            }
+                            // Merge water intake for today
+                            if (prog.waterIntake) {
+                                const todayKey = new Date().toISOString().split('T')[0];
+                                if (prog.waterIntake[todayKey]) {
+                                    setWaterIntake(prog.waterIntake[todayKey]);
+                                }
+                            }
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load programs from API", err);
+            }
+        };
+
+        loadInitial();
     }, []);
 
-    // Save progress
+    // Save progress to local storage when state changes
     useEffect(() => {
         localStorage.setItem('viraProgramProgress', JSON.stringify(progress));
     }, [progress]);
 
     const today = new Date().toDateString();
+    const todayISO = new Date().toISOString().split('T')[0];
 
-    const toggleActivity = (programId, activityId) => {
+    const toggleActivity = async (programId, activityId) => {
+        const key = `${programId}-${todayISO}`;
+        
+        // Optimistic UI update
         setProgress(prev => {
-            const key = `${programId}-${today}`;
             const current = prev[key] || [];
             const updated = current.includes(activityId)
                 ? current.filter(id => id !== activityId)
                 : [...current, activityId];
             return { ...prev, [key]: updated };
         });
+
+        // API Call
+        try {
+            await fetch('/api/programs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    programId,
+                    action: 'toggleActivity',
+                    data: { activityId, date: todayISO }
+                })
+            });
+        } catch (err) {
+            console.error("Failed to sync activity to API", err);
+        }
     };
 
     const getCompletedCount = (programId) => {
-        const key = `${programId}-${today}`;
+        const key = `${programId}-${todayISO}`;
         return progress[key]?.length || 0;
     };
 
-    const addWater = () => {
+    const addWater = async () => {
         const newIntake = waterIntake + 1;
         setWaterIntake(newIntake);
         localStorage.setItem('viraWater', JSON.stringify({ date: today, glasses: newIntake }));
+
+        if (selectedProgram) {
+            try {
+                await fetch('/api/programs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        programId: selectedProgram,
+                        action: 'addWater',
+                        data: { amount: newIntake, date: todayISO }
+                    })
+                });
+            } catch (err) {
+                console.error("Failed to sync water to API", err);
+            }
+        }
     };
 
-    const logMood = (mood) => {
+    const logMood = async (mood) => {
         const entry = { mood, date: new Date().toISOString() };
         const updated = [...moodLog, entry];
         setMoodLog(updated);
         localStorage.setItem('viraMoodLog', JSON.stringify(updated));
+
+        if (selectedProgram) {
+            try {
+                await fetch('/api/programs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        programId: selectedProgram,
+                        action: 'logMood',
+                        data: { mood, date: entry.date }
+                    })
+                });
+            } catch (err) {
+                console.error("Failed to sync mood to API", err);
+            }
+        }
     };
 
     const program = selectedProgram ? PROGRAMS.find(p => p.id === selectedProgram) : null;
@@ -254,7 +338,7 @@ export default function ProgramsPage() {
                         {/* Activities */}
                         <div className="space-y-3">
                             {program.activities.map(activity => {
-                                const key = `${program.id}-${today}`;
+                                const key = `${program.id}-${todayISO}`;
                                 const isCompleted = progress[key]?.includes(activity.id);
 
                                 return (

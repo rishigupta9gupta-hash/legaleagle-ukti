@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import User from '@/app/models/User';
+import UserPreference from '@/app/models/UserPreference';
 
 export async function POST(request) {
     try {
+        await dbConnect();
         const { name, email, password } = await request.json();
 
         if (!email || !password || !name) {
@@ -13,12 +16,9 @@ export async function POST(request) {
         }
 
         // Check if user exists
-        const existing = await query(
-            'SELECT id FROM users WHERE email = $1',
-            [email]
-        );
+        const existing = await User.findOne({ email });
 
-        if (existing.rows.length > 0) {
+        if (existing) {
             return NextResponse.json(
                 { success: false, message: 'User with this email already exists' },
                 { status: 409 }
@@ -27,22 +27,14 @@ export async function POST(request) {
 
         // Insert user
         // Note: In real app, hash password here using bcrypt
-        const result = await query(
-            'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email, created_at',
-            [name, email, password]
-        );
-
-        const newUser = result.rows[0];
+        const newUser = await User.create({ name, email, password, role: 'user' });
 
         // Create default preferences
-        await query(
-            'INSERT INTO user_preferences (user_id) VALUES ($1)',
-            [newUser.id]
-        );
+        await UserPreference.create({ user_id: newUser._id });
 
         return NextResponse.json({
             success: true,
-            user: newUser,
+            user: { id: newUser._id, name: newUser.name, email: newUser.email, created_at: newUser.createdAt },
             message: 'Account created successfully'
         });
 

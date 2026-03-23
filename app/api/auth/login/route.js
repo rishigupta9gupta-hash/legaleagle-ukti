@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import User from '@/app/models/User';
 import { SignJWT } from 'jose';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
 export async function POST(request) {
     try {
+        await dbConnect();
         const { email, password } = await request.json();
 
         if (!email || !password) {
@@ -16,12 +18,7 @@ export async function POST(request) {
         }
 
         // Query user from database
-        const result = await query(
-            'SELECT id, name, email, password, role, phone, specialization, "isAdmin", avatar_url, "status", "isApproved" FROM users WHERE email = $1',
-            [email]
-        );
-
-        const user = result.rows[0];
+        const user = await User.findOne({ email }).lean();
 
         if (!user) {
             return NextResponse.json(
@@ -50,15 +47,16 @@ export async function POST(request) {
         }
 
         // Return user info (excluding password)
-        const { password: _, ...userWithoutPassword } = user;
+        const { password: _, _id, ...userWithoutPassword } = user;
+        userWithoutPassword.id = _id?.toString() || user.id;
 
         // Generate JWT Token
         const secret = new TextEncoder().encode(JWT_SECRET);
         const token = await new SignJWT({
-            id: user.id,
-            email: user.email,
-            role: user.role,
-            isAdmin: user.isAdmin
+            id: userWithoutPassword.id,
+            email: userWithoutPassword.email,
+            role: userWithoutPassword.role,
+            isAdmin: userWithoutPassword.isAdmin
         })
             .setProtectedHeader({ alg: 'HS256' })
             .setExpirationTime('24h')

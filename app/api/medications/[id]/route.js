@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import Medication from '@/app/models/Medication';
 
 export async function DELETE(request, { params }) {
     try {
+        await dbConnect();
         const { id } = params;
 
         if (!id) {
@@ -12,7 +14,7 @@ export async function DELETE(request, { params }) {
             );
         }
 
-        await query('DELETE FROM medications WHERE id = $1', [id]);
+        await Medication.findByIdAndDelete(id);
 
         return NextResponse.json({
             success: true,
@@ -29,6 +31,7 @@ export async function DELETE(request, { params }) {
 
 export async function PATCH(request, { params }) {
     try {
+        await dbConnect();
         const { id } = params;
         const body = await request.json();
         const { takenDates } = body;
@@ -40,16 +43,22 @@ export async function PATCH(request, { params }) {
             );
         }
 
-        // Currently only supporting updating 'takenDates' for the tracker
         if (takenDates) {
-            const result = await query(
-                'UPDATE medications SET taken_dates = $1 WHERE id = $2 RETURNING *',
-                [takenDates, id]
-            );
+            const updatedMed = await Medication.findByIdAndUpdate(
+                id,
+                { $set: { takenDates } },
+                { new: true }
+            ).lean();
+            
+            updatedMed.created_at = updatedMed.createdAt;
+            updatedMed.expiry_date = updatedMed.expiryDate;
+            updatedMed.image_url = updatedMed.imageUrl;
+            updatedMed.taken_dates = updatedMed.takenDates;
+            updatedMed.id = updatedMed._id;
 
             return NextResponse.json({
                 success: true,
-                data: result.rows[0]
+                data: updatedMed
             });
         }
 

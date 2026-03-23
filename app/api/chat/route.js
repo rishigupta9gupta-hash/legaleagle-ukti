@@ -1,20 +1,20 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import Conversation from '@/app/models/Conversation';
+import Message from '@/app/models/Message';
+import User from '@/app/models/User';
 
 export const dynamic = 'force-dynamic';
 
-// Helper: normalize participant order so (A,B) and (B,A) always become the same pair
 function normalizeParticipants(email1, email2) {
     return email1.toLowerCase() < email2.toLowerCase()
         ? [email1, email2]
         : [email2, email1];
 }
 
-// GET: Fetch conversations or messages
-// ?user=email -> list all chat partners for this user
-// ?user=email&other=email -> get messages between two users
 export async function GET(req) {
     try {
+        await dbConnect();
         const { searchParams } = new URL(req.url);
         const userEmail = searchParams.get('user');
         const otherEmail = searchParams.get('other');
@@ -24,59 +24,49 @@ export async function GET(req) {
         }
 
         if (otherEmail) {
-            // Fetch messages between two users (normalize to find conversation)
             const [p1, p2] = normalizeParticipants(userEmail, otherEmail);
-            const conv = await query(
-                `SELECT id FROM conversations 
-                 WHERE participant_one = $1 AND participant_two = $2`,
-                [p1, p2]
-            );
+            const conv = await Conversation.findOne({ participant_one: p1, participant_two: p2 }).lean();
 
-            if (conv.rows.length === 0) {
+            if (!conv) {
                 return NextResponse.json({ messages: [] });
             }
 
-            const convId = conv.rows[0].id;
-            const msgs = await query(
-                `SELECT id, sender_id as "from", 
-                        CASE WHEN sender_id = $1 THEN $2 ELSE $1 END as "to",
-                        content, created_at as timestamp
-                 FROM messages 
-                 WHERE conversation_id = $3 
-                 ORDER BY created_at ASC`,
-                [userEmail, otherEmail, convId]
-            );
+            const msgs = await Message.find({ conversation_id: conv._id }).sort({ createdAt: 1 }).lean();
 
-            return NextResponse.json({ messages: msgs.rows });
+            const formattedMsgs = msgs.map(m => ({
+                id: m._id,
+                from: m.sender_id,
+                to: m.sender_id === userEmail ? otherEmail : userEmail,
+                content: m.content,
+                timestamp: m.createdAt
+            }));
+
+            return NextResponse.json({ messages: formattedMsgs });
         } else {
-            // Fetch all chat partners for this user
             try {
-                const convs = await query(
-                    `SELECT c.id, c.participant_one, c.participant_two, c.updated_at,
-                            u1.name as p1_name, u1.role as p1_role, 
-                            u2.name as p2_name, u2.role as p2_role
-                     FROM conversations c
-                     LEFT JOIN users u1 ON u1.email = c.participant_one
-                     LEFT JOIN users u2 ON u2.email = c.participant_two
-                     WHERE c.participant_one = $1 OR c.participant_two = $1
-                     ORDER BY c.updated_at DESC`,
-                    [userEmail]
-                );
+                const convs = await Conversation.find({
+                    $or: [
+                        { participant_one: userEmail },
+                        { participant_two: userEmail }
+                    ]
+                }).sort({ updatedAt: -1 }).lean();
 
-                // Deduplicate by partner email (take the most recent conversation)
                 const seen = new Set();
                 const clients = [];
-                for (const conv of convs.rows) {
+
+                for (const conv of convs) {
                     const isP1 = conv.participant_one === userEmail;
                     const partnerEmail = isP1 ? conv.participant_two : conv.participant_one;
 
                     if (seen.has(partnerEmail)) continue;
                     seen.add(partnerEmail);
 
+                    const partnerUser = await User.findOne({ email: partnerEmail }).lean();
+
                     clients.push({
                         email: partnerEmail,
-                        username: isP1 ? (conv.p2_name || 'User') : (conv.p1_name || 'User'),
-                        role: isP1 ? conv.p2_role : conv.p1_role,
+                        username: partnerUser?.name || 'User',
+                        role: partnerUser?.role || 'user',
                     });
                 }
 
@@ -92,9 +82,9 @@ export async function GET(req) {
     }
 }
 
-// POST: Send a message (auto-create conversation if needed)
 export async function POST(req) {
     try {
+        await dbConnect();
         const { from, to, content } = await req.json();
 
         if (!from || !to || !content) {
@@ -104,41 +94,31 @@ export async function POST(req) {
             );
         }
 
-        // Normalize participant order so we never create duplicates
         const [p1, p2] = normalizeParticipants(from, to);
 
-        // Find or create conversation using normalized order
-        let conv = await query(
-            `SELECT id FROM conversations 
-             WHERE participant_one = $1 AND participant_two = $2`,
-            [p1, p2]
-        );
+        let conv = await Conversation.findOne({ participant_one: p1, participant_two: p2 });
 
-        let convId;
-        if (conv.rows.length === 0) {
-            const newConv = await query(
-                `INSERT INTO conversations (id, participant_one, participant_two) 
-                 VALUES (gen_random_uuid()::text, $1, $2) 
-                 RETURNING id`,
-                [p1, p2]
-            );
-            convId = newConv.rows[0].id;
-        } else {
-            convId = conv.rows[0].id;
+        if (!conv) {
+            conv = await Conversation.create({ participant_one: p1, participant_two: p2 });
         }
 
-        // Insert message (sender_id is always the original 'from')
-        const msgResult = await query(
-            `INSERT INTO messages (id, conversation_id, sender_id, content) 
-             VALUES (gen_random_uuid()::text, $1, $2, $3) 
-             RETURNING id, sender_id as "from", content, created_at as timestamp`,
-            [convId, from, content]
-        );
+        const msg = await Message.create({
+            conversation_id: conv._id,
+            sender_id: from,
+            content: content
+        });
 
-        // Update conversation timestamp
-        await query(`UPDATE conversations SET updated_at = NOW() WHERE id = $1`, [convId]);
+        // Update conv timestamp
+        conv.updatedAt = new Date();
+        await conv.save();
 
-        const savedMessage = { ...msgResult.rows[0], to };
+        const savedMessage = {
+            id: msg._id,
+            from: msg.sender_id,
+            to: to,
+            content: msg.content,
+            timestamp: msg.createdAt
+        };
 
         return NextResponse.json(
             { message: 'Message saved successfully', savedMessage },
@@ -153,9 +133,9 @@ export async function POST(req) {
     }
 }
 
-// DELETE: Delete a conversation
 export async function DELETE(req) {
     try {
+        await dbConnect();
         const { userEmail, otherEmail } = await req.json();
 
         if (!userEmail || !otherEmail) {
@@ -165,21 +145,16 @@ export async function DELETE(req) {
             );
         }
 
-        // Normalize to find the conversation
         const [p1, p2] = normalizeParticipants(userEmail, otherEmail);
 
-        const conv = await query(
-            `SELECT id FROM conversations 
-             WHERE participant_one = $1 AND participant_two = $2`,
-            [p1, p2]
-        );
+        const conv = await Conversation.findOne({ participant_one: p1, participant_two: p2 });
 
-        if (conv.rows.length === 0) {
+        if (!conv) {
             return NextResponse.json({ error: 'No conversation found' }, { status: 404 });
         }
 
-        await query(`DELETE FROM messages WHERE conversation_id = $1`, [conv.rows[0].id]);
-        await query(`DELETE FROM conversations WHERE id = $1`, [conv.rows[0].id]);
+        await Message.deleteMany({ conversation_id: conv._id });
+        await Conversation.deleteOne({ _id: conv._id });
 
         return NextResponse.json({ message: 'Conversation deleted successfully' });
     } catch (error) {

@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getReports, saveReport, deleteReport } from "@/app/utils/report-api";
+import { compressBase64 } from "@/app/utils/compress-image";
 import {
     ArrowLeft, Upload, FileText, Image, X, Loader2,
     HeartPulse, CheckCircle, AlertTriangle, Info, Download
@@ -82,8 +83,23 @@ export default function ReportsPage() {
                 reader.readAsDataURL(uploadedFile);
             });
 
-            const base64Data = fileData.split(',')[1];
-            const mimeType = uploadedFile.type;
+            let base64Data = fileData.split(',')[1];
+            let mimeType = uploadedFile.type;
+
+            // Compress images before sending to reduce API token usage
+            if (mimeType.startsWith('image/')) {
+                try {
+                    const compressed = await compressBase64(base64Data, mimeType, {
+                        maxWidth: 1024,
+                        maxHeight: 1024,
+                        quality: 0.7
+                    });
+                    base64Data = compressed.base64;
+                    mimeType = compressed.mimeType;
+                } catch (compErr) {
+                    console.warn('Image compression failed, using original:', compErr);
+                }
+            }
 
             // Call server-side API route (keeps API key secure)
             const res = await fetch('/api/analyze', {

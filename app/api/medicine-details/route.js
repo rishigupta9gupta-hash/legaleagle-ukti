@@ -56,6 +56,27 @@ async function tryGroq(apiKey, prompt) {
     return data?.choices?.[0]?.message?.content;
 }
 
+// Fallback to OpenAI API
+async function tryOpenAI(apiKey, prompt) {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 2048,
+            temperature: 0.3
+        }),
+        signal: AbortSignal.timeout(30000)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || `OpenAI error ${res.status}`);
+    return data?.choices?.[0]?.message?.content;
+}
+
 export async function POST(request) {
     try {
         const { name, dosage } = await request.json();
@@ -78,7 +99,16 @@ export async function POST(request) {
             const groqKey = process.env.GROQ_API_KEY;
             if (groqKey) {
                 try { text = await tryGroq(groqKey, prompt); }
-                catch (e) { console.error('Groq:', e.message?.substring(0, 80)); }
+                catch (e) { console.warn('Groq:', e.message?.substring(0, 80)); }
+            }
+        }
+
+        // Fallback to OpenAI
+        if (!text) {
+            const openaiKey = process.env.OPENAI_API_KEY;
+            if (openaiKey) {
+                try { text = await tryOpenAI(openaiKey, prompt); }
+                catch (e) { console.warn('OpenAI:', e.message?.substring(0, 80)); }
             }
         }
 

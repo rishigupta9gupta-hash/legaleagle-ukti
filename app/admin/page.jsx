@@ -14,15 +14,7 @@ export default function AdminPage() {
     const [activeTab, setActiveTab] = useState('PENDING'); // PENDING, APPROVED, SUSPENDED, ALL
     const [selectedDoctor, setSelectedDoctor] = useState(null); // For detail modal
 
-    useEffect(() => {
-        const sessionUser = getClientSession();
-        if (!sessionUser || !sessionUser.isAdmin) {
-            router.push('/');
-            return;
-        }
-        setUser(sessionUser);
-        fetchDoctors();
-    }, [activeTab]);
+
 
     const fetchDoctors = async () => {
         setLoading(true);
@@ -140,9 +132,9 @@ export default function AdminPage() {
                                 <div>
                                     <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Current Status</label>
                                     <span className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium ${doctor.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
-                                            doctor.status === 'PENDING' ? 'bg-amber-100 text-amber-800' :
-                                                doctor.status === 'SUSPENDED' ? 'bg-orange-100 text-orange-800' :
-                                                    'bg-red-100 text-red-800'
+                                        doctor.status === 'PENDING' ? 'bg-amber-100 text-amber-800' :
+                                            doctor.status === 'SUSPENDED' ? 'bg-orange-100 text-orange-800' :
+                                                'bg-red-100 text-red-800'
                                         }`}>
                                         {doctor.status || 'PENDING'}
                                     </span>
@@ -234,8 +226,8 @@ export default function AdminPage() {
                             key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap transition-all ${activeTab === tab
-                                    ? 'bg-zinc-900 text-white shadow-lg shadow-zinc-500/20'
-                                    : 'bg-white text-zinc-600 hover:bg-zinc-50 border border-zinc-200'
+                                ? 'bg-zinc-900 text-white shadow-lg shadow-zinc-500/20'
+                                : 'bg-white text-zinc-600 hover:bg-zinc-50 border border-zinc-200'
                                 }`}
                         >
                             {tab.charAt(0) + tab.slice(1).toLowerCase()}
@@ -275,8 +267,8 @@ export default function AdminPage() {
                                                 {/* Mini Status Badge for ALL view */}
                                                 {activeTab === 'ALL' && (
                                                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${doctor.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
-                                                            doctor.status === 'PENDING' ? 'bg-amber-100 text-amber-800' :
-                                                                'bg-red-100 text-red-800'
+                                                        doctor.status === 'PENDING' ? 'bg-amber-100 text-amber-800' :
+                                                            'bg-red-100 text-red-800'
                                                         }`}>
                                                         {doctor.status}
                                                     </span>

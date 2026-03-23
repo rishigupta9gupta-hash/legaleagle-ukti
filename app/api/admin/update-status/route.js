@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import User from '@/app/models/User';
 
 export async function POST(request) {
     try {
+        await dbConnect();
         const { doctorId, status } = await request.json();
 
         if (!doctorId || !status) {
@@ -14,15 +16,14 @@ export async function POST(request) {
             return NextResponse.json({ success: false, message: 'Invalid status' }, { status: 400 });
         }
 
-        // Sync isApproved for backward compatibility
         const isApproved = status === 'APPROVED';
 
-        const result = await query(
-            `UPDATE users SET "status" = $1, "isApproved" = $2 WHERE id = $3 AND role = 'doctor'`,
-            [status, isApproved, doctorId]
+        const updatedUser = await User.findOneAndUpdate(
+            { _id: doctorId, role: 'doctor' },
+            { $set: { status, isApproved } }
         );
 
-        if (result.rowCount === 0) {
+        if (!updatedUser) {
             return NextResponse.json({ success: false, message: 'Doctor not found or not a doctor role' }, { status: 404 });
         }
 

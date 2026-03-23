@@ -1,29 +1,34 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import User from '@/app/models/User';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
     try {
+        await dbConnect();
         const { searchParams } = new URL(request.url);
         const specialization = searchParams.get('specialization');
 
-        let sql = `SELECT id, name, email, phone, specialization, experience_years, bio, avatar_url, created_at 
-                    FROM users WHERE role = 'doctor' AND "isApproved" = true`;
-        const params = [];
-
+        const query = { role: 'doctor', isApproved: true };
         if (specialization) {
-            sql += ` AND specialization = $1`;
-            params.push(specialization);
+            query.specialization = specialization;
         }
 
-        sql += ` ORDER BY created_at DESC`;
+        const doctors = await User.find(query)
+            .select('id name email phone specialization experience_years bio avatar_url createdAt')
+            .sort({ createdAt: -1 })
+            .lean();
 
-        const result = await query(sql, params);
+        const formattedDoctors = doctors.map(d => {
+            d.created_at = d.createdAt;
+            d.id = d._id;
+            return d;
+        });
 
         return NextResponse.json({
             success: true,
-            doctors: result.rows
+            doctors: formattedDoctors
         });
     } catch (error) {
         console.error('Error fetching doctors:', error);

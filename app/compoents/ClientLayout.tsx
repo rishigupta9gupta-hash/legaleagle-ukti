@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronDown, Sun, Moon, LogOut, User, HeartPulse, Stethoscope, Pill, FileText, Heart, MessageCircle, Users, Menu, X } from 'lucide-react';
+import { ChevronDown, Sun, Moon, LogOut, User, HeartPulse, Stethoscope, Pill, FileText, Heart, MessageCircle, Users, Menu, X, LayoutDashboard, Scan } from 'lucide-react';
 import { getSession, clearSession } from '../utils/auth';
 
 interface ClientLayoutProps {
@@ -59,7 +59,9 @@ export const ClientLayout: React.FC<ClientLayoutProps> = ({ children }) => {
     };
 
     const navItems = [
+        ...(user ? [{ name: 'Dashboard', path: '/dashboard', hasDropdown: false }] : []),
         { name: 'Health Check', path: '/triage', hasDropdown: false },
+        { name: 'Skin Scan', path: '/skin-check', hasDropdown: false },
         { name: 'Find Doctors', path: '/doctors', hasDropdown: false },
         { name: 'Features', path: '#', hasDropdown: true },
         ...(user ? [{ name: 'Chat', path: '/chat', hasDropdown: false }] : []),
@@ -168,6 +170,20 @@ export const ClientLayout: React.FC<ClientLayoutProps> = ({ children }) => {
                                                             </div>
                                                         </button>
                                                     </li>
+                                                    <li>
+                                                        <button
+                                                            onClick={() => router.push('/skin-check')}
+                                                            className="w-full text-left p-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-3"
+                                                        >
+                                                            <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center">
+                                                                <Scan size={16} className="text-rose-600" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-medium text-zinc-900 dark:text-white text-sm">Skin Scan</div>
+                                                                <div className="text-xs text-zinc-500">AI skin condition analysis</div>
+                                                            </div>
+                                                        </button>
+                                                    </li>
                                                 </ul>
                                             </div>
                                         </div>
@@ -254,6 +270,7 @@ export const ClientLayout: React.FC<ClientLayoutProps> = ({ children }) => {
                                                 <button onClick={() => router.push('/triage')} className="w-full text-left px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">Symptom Check</button>
                                                 <button onClick={() => router.push('/medication')} className="w-full text-left px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">Medications</button>
                                                 <button onClick={() => router.push('/reports')} className="w-full text-left px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">Report Analysis</button>
+                                                <button onClick={() => router.push('/skin-check')} className="w-full text-left px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">Skin Scan</button>
                                                 <button onClick={() => router.push('/care-programs')} className="w-full text-left px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">Care Programs</button>
                                             </div>
                                         </div>

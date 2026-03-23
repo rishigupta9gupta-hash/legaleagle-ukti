@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import User from '@/app/models/User';
+import PasswordReset from '@/app/models/PasswordReset';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request) {
     try {
+        await dbConnect();
         const { token, password } = await request.json();
 
         if (!token || !password) {
@@ -11,25 +14,25 @@ export async function POST(request) {
         }
 
         // Validate Token
-        const resetRes = await query(
-            'SELECT * FROM password_resets WHERE token = $1 AND expires > NOW()',
-            [token]
-        );
+        const resetRecord = await PasswordReset.findOne({
+            token,
+            expires: { $gt: new Date() }
+        });
 
-        if (resetRes.rows.length === 0) {
+        if (!resetRecord) {
             return NextResponse.json({ success: false, message: 'Invalid or expired token' }, { status: 400 });
         }
 
-        const email = resetRes.rows[0].email;
+        const email = resetRecord.email;
 
         // Hash Password
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // Update User
-        await query('UPDATE users SET password = $1 WHERE email = $2', [hashedPassword, email]);
+        await User.updateOne({ email }, { $set: { password: hashedPassword } });
 
         // Consume Token
-        await query('DELETE FROM password_resets WHERE token = $1', [token]);
+        await PasswordReset.deleteOne({ token });
 
         return NextResponse.json({ success: true, message: 'Password reset successfully' });
 

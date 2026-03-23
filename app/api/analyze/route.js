@@ -86,6 +86,38 @@ async function tryGroq(apiKey, base64Data, mimeType) {
     return data?.choices?.[0]?.message?.content;
 }
 
+// Fallback to OpenAI API
+async function tryOpenAI(apiKey, base64Data, mimeType) {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [{
+                role: "user",
+                content: [
+                    { type: "text", text: PROMPT },
+                    {
+                        type: "image_url",
+                        image_url: {
+                            url: `data:${mimeType};base64,${base64Data}`
+                        }
+                    }
+                ]
+            }],
+            max_tokens: 4096,
+            temperature: 0.3
+        }),
+        signal: AbortSignal.timeout(60000)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || `OpenAI error ${res.status}`);
+    return data?.choices?.[0]?.message?.content;
+}
+
 export async function POST(request) {
     try {
         const body = await request.json();
@@ -112,7 +144,20 @@ export async function POST(request) {
             }
         }
 
-        // 2. Fallback to Groq
+        // 2. Fallback to xAI/Grok
+        if (!text) {
+            const xaiKey = process.env.XAI_API_KEY;
+            if (xaiKey) {
+                try {
+                    text = await tryOpenAI(xaiKey, base64Data, mimeType, 'https://api.x.ai/v1', 'grok-2-vision-1212');
+                    provider = 'xai';
+                } catch (e) {
+                    console.warn('xAI failed:', e.message?.substring(0, 100));
+                }
+            }
+        }
+
+        // 3. Fallback to Groq (free tier)
         if (!text) {
             const groqKey = process.env.GROQ_API_KEY;
             if (groqKey) {
@@ -120,7 +165,20 @@ export async function POST(request) {
                     text = await tryGroq(groqKey, base64Data, mimeType);
                     provider = 'groq';
                 } catch (e) {
-                    console.error('Groq failed:', e.message?.substring(0, 100));
+                    console.warn('Groq failed:', e.message?.substring(0, 100));
+                }
+            }
+        }
+
+        // 4. Fallback to OpenAI
+        if (!text) {
+            const openaiKey = process.env.OPENAI_API_KEY;
+            if (openaiKey) {
+                try {
+                    text = await tryOpenAI(openaiKey, base64Data, mimeType, 'https://api.openai.com/v1', 'gpt-4o-mini');
+                    provider = 'openai';
+                } catch (e) {
+                    console.warn('OpenAI failed:', e.message?.substring(0, 100));
                 }
             }
         }

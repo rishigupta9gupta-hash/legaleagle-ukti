@@ -10,7 +10,11 @@ const protectedRoutes = [
     '/dashboard',
     '/profile',
     '/reports',
-    '/medication'
+    '/medication',
+    '/skin-check',
+    '/care-programs',
+    '/admin',
+    '/api/admin'
 ];
 
 // Routes that are public (optional, for explicit exclusion logic if needed)
@@ -44,9 +48,19 @@ export async function middleware(request) {
         try {
             // Verify JWT
             const secret = new TextEncoder().encode(JWT_SECRET);
-            await jwtVerify(token, secret);
+            const { payload } = await jwtVerify(token, secret);
 
-            // Token is valid, proceed
+            // Check admin access
+            const isAdminRoute = pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
+            if (isAdminRoute && !payload.isAdmin) {
+                // If it's an API route, send JSON 403. Otherwise, component redirect.
+                if (pathname.startsWith('/api/')) {
+                    return NextResponse.json({ success: false, message: 'Forbidden' }, { status: 403 });
+                }
+                return NextResponse.redirect(new URL('/dashboard', request.url));
+            }
+
+            // Token is valid and permissions are OK, proceed
             return NextResponse.next();
         } catch (error) {
             // Token invalid or expired

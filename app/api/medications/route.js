@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/app/lib/db';
+import dbConnect from '@/app/lib/dbConnect';
+import Medication from '@/app/models/Medication';
 
 export async function GET(request) {
     try {
+        await dbConnect();
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
 
@@ -13,14 +15,20 @@ export async function GET(request) {
             );
         }
 
-        const result = await query(
-            'SELECT * FROM medications WHERE user_id = $1 ORDER BY created_at DESC',
-            [userId]
-        );
+        const meds = await Medication.find({ user_id: userId }).sort({ createdAt: -1 }).lean();
+
+        const mappedMeds = meds.map(m => ({
+            ...m,
+            created_at: m.createdAt,
+            expiry_date: m.expiryDate,
+            image_url: m.imageUrl,
+            taken_dates: m.takenDates,
+            id: m._id
+        }));
 
         return NextResponse.json({
             success: true,
-            data: result.rows
+            data: mappedMeds
         });
     } catch (error) {
         console.error('Database Error:', error);
@@ -33,6 +41,7 @@ export async function GET(request) {
 
 export async function POST(request) {
     try {
+        await dbConnect();
         const body = await request.json();
         const { userId, name, dosage, frequency, time, expiryDate, notes, imageUrl } = body;
 
@@ -43,17 +52,27 @@ export async function POST(request) {
             );
         }
 
-        const result = await query(
-            `INSERT INTO medications 
-       (user_id, name, dosage, frequency, time, expiry_date, notes, image_url) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-       RETURNING *`,
-            [userId, name, dosage, frequency, time, expiryDate, notes, imageUrl]
-        );
+        const newMed = await Medication.create({
+            user_id: userId,
+            name,
+            dosage,
+            frequency,
+            time,
+            expiryDate,
+            notes,
+            imageUrl
+        });
+
+        const medData = newMed.toObject();
+        medData.created_at = medData.createdAt;
+        medData.expiry_date = medData.expiryDate;
+        medData.image_url = medData.imageUrl;
+        medData.taken_dates = medData.takenDates;
+        medData.id = medData._id;
 
         return NextResponse.json({
             success: true,
-            data: result.rows[0]
+            data: medData
         });
     } catch (error) {
         console.error('Database Error:', error);
